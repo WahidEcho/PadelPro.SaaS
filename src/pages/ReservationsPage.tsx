@@ -1,8 +1,6 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { mockReservations, mockClients, mockCourts } from "@/lib/mock-data";
-import { Reservation, Client, Court } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,8 +24,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { format } from "date-fns";
-import { CalendarIcon, Plus, Search } from "lucide-react";
+import { format, addHours, isBefore, parseISO } from "date-fns";
+import { CalendarIcon, Plus, Search, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -45,9 +43,13 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { supabase } from '@/integrations/supabase/client';
+import { Court, Client, Reservation, ReservationWithDetails } from "@/types/supabase";
 
 const ReservationsPage = () => {
-  const [reservations, setReservations] = useState<Reservation[]>(mockReservations);
+  const [reservations, setReservations] = useState<ReservationWithDetails[]>([]);
+  const [courts, setCourts] = useState<Court[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [selectedCourt, setSelectedCourt] = useState<string>("");
@@ -55,11 +57,96 @@ const ReservationsPage = () => {
   const [timeEnd, setTimeEnd] = useState<string>("10:00");
   const [selectedClient, setSelectedClient] = useState<string>("");
   const [amount, setAmount] = useState<number>(40);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "wallet">("cash");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedTab, setSelectedTab] = useState<string>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const { toast } = useToast();
+
+  // Fetch data from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        // Fetch courts
+        const { data: courtsData, error: courtsError } = await supabase
+          .from('courts')
+          .select('*');
+        
+        if (courtsError) {
+          throw courtsError;
+        }
+
+        setCourts(courtsData);
+
+        // Fetch clients
+        const { data: clientsData, error: clientsError } = await supabase
+          .from('clients')
+          .select('*');
+        
+        if (clientsError) {
+          throw clientsError;
+        }
+
+        setClients(clientsData);
+
+        // Fetch reservations
+        const { data: reservationsData, error: reservationsError } = await supabase
+          .from('reservations')
+          .select(`
+            *,
+            clients!inner (name),
+            courts!inner (name)
+          `)
+          .order('date', { ascending: false });
+        
+        if (reservationsError) {
+          throw reservationsError;
+        }
+
+        // Format reservations data with client and court names
+        const reservationsWithDetails = reservationsData.map((res: any) => ({
+          ...res,
+          client_name: res.clients.name,
+          court_name: res.courts.name
+        }));
+
+        setReservations(reservationsWithDetails);
+
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch reservation data",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  // Update end time when start time changes (add 1 hour)
+  const handleTimeStartChange = (value: string) => {
+    setTimeStart(value);
+    
+    // Parse the start time
+    const [hours, minutes] = value.split(':').map(Number);
+    
+    // Add 1 hour
+    const endHours = hours + 1;
+    
+    // Format the end time
+    const formattedEndHours = endHours.toString().padStart(2, '0');
+    const formattedEndMinutes = minutes.toString().padStart(2, '0');
+    const newEndTime = `${formattedEndHours}:${formattedEndMinutes}`;
+    
+    setTimeEnd(newEndTime);
+  };
 
   // Filter reservations based on search term and tab
   const filteredReservations = reservations
@@ -87,7 +174,7 @@ const ReservationsPage = () => {
       return true;
     });
 
-  const handleAddReservation = () => {
+  const handleAddReservation = async () => {
     if (!selectedCourt || !selectedClient || !date) {
       toast({
         title: "Error",
@@ -97,44 +184,101 @@ const ReservationsPage = () => {
       return;
     }
 
-    // Find client and court for display names
-    const client = mockClients.find((c) => c.id === selectedClient);
-    const court = mockCourts.find((c) => c.id === selectedCourt);
+    // Check if reservation date is in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
-    const newReservation: Reservation = {
-      id: (reservations.length + 1).toString(),
-      client_id: selectedClient,
-      court_id: selectedCourt,
-      date: format(date, "yyyy-MM-dd"),
-      time_start: timeStart,
-      time_end: timeEnd,
-      amount: amount,
-      payment_method: paymentMethod,
-      created_at: new Date().toISOString(),
-      client_name: client?.name,
-      court_name: court?.name,
-    };
+    if (date && isBefore(date, today)) {
+      toast({
+        title: "Error",
+        description: "Cannot make reservations for past dates",
+        variant: "destructive",
+      });
+      return;
+    }
     
-    setReservations([...reservations, newReservation]);
-    setSelectedCourt("");
-    setSelectedClient("");
-    setDate(new Date());
-    setTimeStart("09:00");
-    setTimeEnd("10:00");
-    setAmount(40);
-    setPaymentMethod("cash");
-    setOpen(false);
+    setIsSubmitting(true);
     
-    toast({
-      title: "Reservation added",
-      description: `Reservation has been added successfully`,
-    });
+    try {
+      // Insert reservation into Supabase
+      const { data: reservationData, error: reservationError } = await supabase
+        .from('reservations')
+        .insert([
+          {
+            client_id: selectedClient,
+            court_id: selectedCourt,
+            date: format(date, 'yyyy-MM-dd'),
+            time_start: timeStart,
+            time_end: timeEnd,
+            amount: amount,
+            payment_method: paymentMethod
+          }
+        ])
+        .select();
+        
+      if (reservationError) {
+        throw reservationError;
+      }
+      
+      // Also create a transaction for this reservation
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert([
+          {
+            reservation_id: reservationData[0].id,
+            amount: amount,
+            payment_method: paymentMethod,
+            date: format(date, 'yyyy-MM-dd')
+          }
+        ]);
+        
+      if (transactionError) {
+        throw transactionError;
+      }
+      
+      // Find client and court for display names
+      const client = clients.find((c) => c.id === selectedClient);
+      const court = courts.find((c) => c.id === selectedCourt);
+      
+      // Add new reservation to state
+      const newReservation: ReservationWithDetails = {
+        ...reservationData[0],
+        client_name: client?.name,
+        court_name: court?.name
+      };
+      
+      setReservations([newReservation, ...reservations]);
+      
+      // Reset form
+      setSelectedCourt("");
+      setSelectedClient("");
+      setDate(new Date());
+      setTimeStart("09:00");
+      setTimeEnd("10:00");
+      setAmount(40);
+      setPaymentMethod("cash");
+      setOpen(false);
+      
+      toast({
+        title: "Reservation added",
+        description: `Reservation has been added successfully`,
+      });
+    } catch (error) {
+      console.error('Error adding reservation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add reservation",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  // Generate time slots for selection (e.g., 9:00 AM to 9:00 PM in 30-minute intervals)
+  // Generate time slots for selection (all 24 hours in 30-minute intervals)
   const generateTimeSlots = () => {
     const slots = [];
-    for (let hour = 9; hour <= 21; hour++) {
+    for (let hour = 0; hour < 24; hour++) {
       slots.push(`${hour.toString().padStart(2, "0")}:00`);
       slots.push(`${hour.toString().padStart(2, "0")}:30`);
     }
@@ -225,6 +369,12 @@ const ReservationsPage = () => {
                         selected={date}
                         onSelect={setDate}
                         initialFocus
+                        disabled={(date) => {
+                          // Disable dates in the past
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          return isBefore(date, today);
+                        }}
                         className={cn("p-3 pointer-events-auto")}
                       />
                     </PopoverContent>
@@ -241,9 +391,9 @@ const ReservationsPage = () => {
                       <SelectValue placeholder="Select court" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockCourts.map((court) => (
+                      {courts.map((court) => (
                         <SelectItem key={court.id} value={court.id}>
-                          {court.name} ({court.group})
+                          {court.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -255,7 +405,7 @@ const ReservationsPage = () => {
                     <Label htmlFor="time-start">Start Time</Label>
                     <Select 
                       value={timeStart} 
-                      onValueChange={(value) => setTimeStart(value)}
+                      onValueChange={handleTimeStartChange}
                     >
                       <SelectTrigger id="time-start">
                         <SelectValue placeholder="Start time" />
@@ -299,7 +449,7 @@ const ReservationsPage = () => {
                       <SelectValue placeholder="Select client" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockClients.map((client) => (
+                      {clients.map((client) => (
                         <SelectItem key={client.id} value={client.id}>
                           {client.name} ({client.client_id})
                         </SelectItem>
@@ -322,7 +472,7 @@ const ReservationsPage = () => {
                     <Label htmlFor="payment-method">Payment Method</Label>
                     <Select 
                       value={paymentMethod} 
-                      onValueChange={(value) => setPaymentMethod(value as "cash" | "card")}
+                      onValueChange={(value) => setPaymentMethod(value as "cash" | "card" | "wallet")}
                     >
                       <SelectTrigger id="payment-method">
                         <SelectValue placeholder="Select method" />
@@ -330,16 +480,20 @@ const ReservationsPage = () => {
                       <SelectContent>
                         <SelectItem value="cash">Cash</SelectItem>
                         <SelectItem value="card">Card</SelectItem>
+                        <SelectItem value="wallet">Wallet</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)}>
+                <Button variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>
                   Cancel
                 </Button>
-                <Button onClick={handleAddReservation}>
+                <Button onClick={handleAddReservation} disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
                   Add Reservation
                 </Button>
               </DialogFooter>
@@ -378,64 +532,72 @@ const ReservationsPage = () => {
                 </Tabs>
               </div>
 
-              <div className="rounded-md border">
-                <div className="w-full overflow-auto">
-                  <table className="w-full caption-bottom text-sm">
-                    <thead className="[&_tr]:border-b">
-                      <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                        <th className="p-4 text-left font-medium">Client</th>
-                        <th className="p-4 text-left font-medium">Court</th>
-                        <th className="p-4 text-left font-medium">Date</th>
-                        <th className="p-4 text-left font-medium">Time</th>
-                        <th className="p-4 text-left font-medium">Amount</th>
-                        <th className="p-4 text-left font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="[&_tr:last-child]:border-0">
-                      {filteredReservations.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="p-4 text-center text-muted-foreground">
-                            No reservations found.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredReservations.map((res) => {
-                          const status = getReservationStatus(res);
-                          const statusColor = getStatusColor(status);
-                          
-                          return (
-                            <tr 
-                              key={res.id} 
-                              className="border-b transition-colors hover:bg-muted/50"
-                            >
-                              <td className="p-4">{res.client_name}</td>
-                              <td className="p-4">{res.court_name}</td>
-                              <td className="p-4">
-                                {format(new Date(res.date), "MMM d, yyyy")}
-                              </td>
-                              <td className="p-4">
-                                {res.time_start} - {res.time_end}
-                              </td>
-                              <td className="p-4">${res.amount}</td>
-                              <td className="p-4">
-                                <span className={`${statusColor} text-xs font-medium px-2 py-1 rounded-full`}>
-                                  {status === "now" 
-                                    ? "Running Now" 
-                                    : status === "today"
-                                    ? "Today"
-                                    : status === "future"
-                                    ? "Upcoming"
-                                    : "Past"}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-padel-primary" />
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-md border">
+                  <div className="w-full overflow-auto">
+                    <table className="w-full caption-bottom text-sm">
+                      <thead className="[&_tr]:border-b">
+                        <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                          <th className="p-4 text-left font-medium">Client</th>
+                          <th className="p-4 text-left font-medium">Court</th>
+                          <th className="p-4 text-left font-medium">Date</th>
+                          <th className="p-4 text-left font-medium">Time</th>
+                          <th className="p-4 text-left font-medium">Amount</th>
+                          <th className="p-4 text-left font-medium">Payment</th>
+                          <th className="p-4 text-left font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="[&_tr:last-child]:border-0">
+                        {filteredReservations.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                              No reservations found.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredReservations.map((res) => {
+                            const status = getReservationStatus(res);
+                            const statusColor = getStatusColor(status);
+                            
+                            return (
+                              <tr 
+                                key={res.id} 
+                                className="border-b transition-colors hover:bg-muted/50"
+                              >
+                                <td className="p-4">{res.client_name}</td>
+                                <td className="p-4">{res.court_name}</td>
+                                <td className="p-4">
+                                  {format(new Date(res.date), "MMM d, yyyy")}
+                                </td>
+                                <td className="p-4">
+                                  {res.time_start} - {res.time_end}
+                                </td>
+                                <td className="p-4">${res.amount}</td>
+                                <td className="p-4 capitalize">{res.payment_method}</td>
+                                <td className="p-4">
+                                  <span className={`${statusColor} text-xs font-medium px-2 py-1 rounded-full`}>
+                                    {status === "now" 
+                                      ? "Running Now" 
+                                      : status === "today"
+                                      ? "Today"
+                                      : status === "future"
+                                      ? "Upcoming"
+                                      : "Past"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

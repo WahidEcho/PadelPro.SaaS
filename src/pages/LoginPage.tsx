@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -15,26 +15,36 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-
-// Mock auth for now - would be replaced with Supabase auth
-const mockCredentials = {
-  email: "admin@padelpro.com",
-  password: "admin123",
-};
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Loader2 } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
 });
 
+const signupSchema = z.object({
+  email: z.string().email({ message: "Please enter a valid email address" }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+  confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters" }),
+}).refine(data => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
 type LoginFormValues = z.infer<typeof loginSchema>;
+type SignupFormValues = z.infer<typeof signupSchema>;
 
 const LoginPage = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem("padelProAuth") === "true");
+  const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const form = useForm<LoginFormValues>({
+  const loginForm = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       email: "",
@@ -42,28 +52,91 @@ const LoginPage = () => {
     },
   });
 
-  const onSubmit = (data: LoginFormValues) => {
-    // Mock login - would be replaced with actual auth
-    if (data.email === mockCredentials.email && data.password === mockCredentials.password) {
-      localStorage.setItem("padelProAuth", "true");
-      setIsLoggedIn(true);
-      toast({
-        title: "Login successful",
-        description: "Welcome to PadelPro Manager",
+  const signupForm = useForm<SignupFormValues>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
+
+  const onLoginSubmit = async (data: LoginFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
       });
-      navigate("/");
-    } else {
+
+      if (error) {
+        toast({
+          title: "Login failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Login successful",
+          description: "Welcome to PadelPro Manager",
+        });
+        navigate("/");
+      }
+    } catch (error) {
       toast({
         title: "Login failed",
-        description: "Invalid email or password",
+        description: "An unexpected error occurred",
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onSignupSubmit = async (data: SignupFormValues) => {
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+      });
+
+      if (error) {
+        toast({
+          title: "Signup failed",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Signup successful",
+          description: "Please check your email to verify your account",
+        });
+        // Switch to login tab
+        setActiveTab("login");
+      }
+    } catch (error) {
+      toast({
+        title: "Signup failed",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // If already logged in, redirect to dashboard
-  if (isLoggedIn) {
+  if (user && !loading) {
     return <Navigate to="/" />;
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-padel-primary" />
+      </div>
+    );
   }
 
   return (
@@ -76,58 +149,143 @@ const LoginPage = () => {
             </div>
             <span className="font-bold text-2xl">PadelPro Manager</span>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Admin Login</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Welcome</h2>
           <p className="mt-2 text-sm text-gray-600">Sign in to access your dashboard</p>
         </div>
         
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="admin@padelpro.com" 
-                      type="email" 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="••••••••" 
-                      type="password" 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <div>
-              <Button type="submit" className="w-full bg-padel-primary hover:bg-padel-primary/90">
-                Sign in
-              </Button>
-            </div>
-          </form>
-        </Form>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")}>
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="login">Login</TabsTrigger>
+            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="login" className="mt-6">
+            <Form {...loginForm}>
+              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="space-y-6">
+                <FormField
+                  control={loginForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="name@example.com" 
+                          type="email" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={loginForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="••••••••" 
+                          type="password" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-padel-primary hover:bg-padel-primary/90" 
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Sign in
+                </Button>
+              </form>
+            </Form>
+          </TabsContent>
+          
+          <TabsContent value="signup" className="mt-6">
+            <Form {...signupForm}>
+              <form onSubmit={signupForm.handleSubmit(onSignupSubmit)} className="space-y-6">
+                <FormField
+                  control={signupForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="name@example.com" 
+                          type="email" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={signupForm.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="••••••••" 
+                          type="password" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={signupForm.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm Password</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="••••••••" 
+                          type="password" 
+                          {...field} 
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <Button 
+                  type="submit" 
+                  className="w-full bg-padel-primary hover:bg-padel-primary/90" 
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  Create Account
+                </Button>
+              </form>
+            </Form>
+          </TabsContent>
+        </Tabs>
         
         <div className="mt-4 text-center text-sm text-gray-500">
-          <p>Demo credentials: admin@padelpro.com / admin123</p>
+          <p>To access admin features, register and ask the system administrator to assign you admin rights.</p>
         </div>
       </div>
     </div>

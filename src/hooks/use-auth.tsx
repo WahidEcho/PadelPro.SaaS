@@ -1,7 +1,8 @@
 
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { supabase, getCurrentUser, isAdmin, isEmployee } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
+import { AppRole } from '@/types/supabase';
 
 // Define the context type
 type AuthContextType = {
@@ -32,7 +33,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userIsEmployee, setUserIsEmployee] = useState(false);
 
   useEffect(() => {
-    // Get initial session
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, newSession) => {
+        setSession(newSession);
+        setUser(newSession?.user || null);
+
+        if (newSession?.user) {
+          // Use setTimeout to avoid potential Supabase auth state deadlock
+          setTimeout(async () => {
+            try {
+              const adminStatus = await hasRole(newSession.user.id, 'admin');
+              const employeeStatus = await hasRole(newSession.user.id, 'employee');
+              setUserIsAdmin(adminStatus);
+              setUserIsEmployee(employeeStatus);
+            } catch (error) {
+              console.error('Error checking roles:', error);
+            } finally {
+              setLoading(false);
+            }
+          }, 0);
+        } else {
+          setUserIsAdmin(false);
+          setUserIsEmployee(false);
+          setLoading(false);
+        }
+      }
+    );
+
+    // THEN check for existing session
     const initializeAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -40,8 +69,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(currentSession?.user || null);
 
         if (currentSession?.user) {
-          const adminStatus = await isAdmin();
-          const employeeStatus = await isEmployee();
+          const adminStatus = await hasRole(currentSession.user.id, 'admin');
+          const employeeStatus = await hasRole(currentSession.user.id, 'employee');
           setUserIsAdmin(adminStatus);
           setUserIsEmployee(employeeStatus);
         }
@@ -54,31 +83,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initializeAuth();
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user || null);
-
-        if (newSession?.user) {
-          const adminStatus = await isAdmin();
-          const employeeStatus = await isEmployee();
-          setUserIsAdmin(adminStatus);
-          setUserIsEmployee(employeeStatus);
-        } else {
-          setUserIsAdmin(false);
-          setUserIsEmployee(false);
-        }
-
-        setLoading(false);
-      }
-    );
-
     // Cleanup subscription
     return () => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Helper function to check user role
+  const hasRole = async (userId: string, role: AppRole): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.rpc('has_role', {
+        _user_id: userId,
+        _role: role
+      });
+      
+      if (error) {
+        console.error('Error checking role:', error);
+        return false;
+      }
+      
+      return !!data;
+    } catch (error) {
+      console.error('Error in hasRole function:', error);
+      return false;
+    }
+  };
 
   // Sign out function
   const signOut = async () => {

@@ -3,18 +3,29 @@ import { Button } from "@/components/ui/button";
 import { UserCircle, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 
 export function DashboardHeader() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, signOut } = useAuth();
 
-  const handleLogout = () => {
-    localStorage.removeItem("padelProAuth");
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully.",
-    });
-    navigate("/login");
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully.",
+      });
+      navigate("/login");
+    } catch (error) {
+      toast({
+        title: "Logout failed",
+        description: "An error occurred during logout",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -26,6 +37,9 @@ export function DashboardHeader() {
       </div>
 
       <div className="flex items-center gap-4">
+        <div className="text-sm text-muted-foreground">
+          {user?.email}
+        </div>
         <Button variant="ghost" size="icon" className="h-9 w-9">
           <UserCircle className="h-5 w-5" />
           <span className="sr-only">User menu</span>

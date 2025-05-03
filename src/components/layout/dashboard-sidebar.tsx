@@ -19,41 +19,54 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Link } from "react-router-dom";
-
-const menuItems = [
-  {
-    title: "Dashboard",
-    icon: Home,
-    path: "/",
-  },
-  {
-    title: "Courts",
-    icon: ClipboardList,
-    path: "/courts",
-  },
-  {
-    title: "Reservations",
-    icon: Calendar,
-    path: "/reservations",
-  },
-  {
-    title: "Clients",
-    icon: Users,
-    path: "/clients",
-  },
-  {
-    title: "Financials",
-    icon: DollarSign,
-    path: "/financials",
-  },
-  {
-    title: "Settings",
-    icon: Settings,
-    path: "/settings",
-  },
-];
+import { useAuth } from "@/hooks/use-auth";
 
 export function DashboardSidebar() {
+  const { isAdmin, isEmployee } = useAuth();
+  
+  // Define menu items based on user roles
+  const menuItems = [
+    {
+      title: "Dashboard",
+      icon: Home,
+      path: "/",
+      visible: true, // Visible to all authenticated users
+    },
+    {
+      title: "Courts",
+      icon: ClipboardList,
+      path: "/courts",
+      visible: true, // Visible to all authenticated users
+    },
+    {
+      title: "Reservations",
+      icon: Calendar,
+      path: "/reservations",
+      visible: true, // Visible to all authenticated users
+    },
+    {
+      title: "Clients",
+      icon: Users,
+      path: "/clients",
+      visible: true, // Visible to all authenticated users
+    },
+    {
+      title: "Financials",
+      icon: DollarSign,
+      path: "/financials",
+      visible: isAdmin, // Only visible to admin users
+    },
+    {
+      title: "Settings",
+      icon: Settings,
+      path: "/settings",
+      visible: isAdmin, // Only visible to admin users
+    },
+  ];
+
+  // Filter menu items based on visibility
+  const visibleMenuItems = menuItems.filter(item => item.visible);
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -67,7 +80,7 @@ export function DashboardSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu>
-            {menuItems.map((item) => (
+            {visibleMenuItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
                   <Link to={item.path} className="flex items-center gap-3">

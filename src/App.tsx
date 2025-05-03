@@ -3,19 +3,29 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Suspense, lazy } from "react";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import Index from "./pages/Index";
-import CourtsPage from "./pages/CourtsPage";
-import ReservationsPage from "./pages/ReservationsPage";
-import ClientsPage from "./pages/ClientsPage";
-import FinancialsPage from "./pages/FinancialsPage";
-import SettingsPage from "./pages/SettingsPage";
-import LoginPage from "./pages/LoginPage";
-import NotFound from "./pages/NotFound";
+import { Loader2 } from "lucide-react";
+
+// Lazy load pages for better performance
+const Index = lazy(() => import("./pages/Index"));
+const CourtsPage = lazy(() => import("./pages/CourtsPage"));
+const ReservationsPage = lazy(() => import("./pages/ReservationsPage"));
+const ClientsPage = lazy(() => import("./pages/ClientsPage"));
+const FinancialsPage = lazy(() => import("./pages/FinancialsPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
+
+// Loading component
+const LoadingScreen = () => (
+  <div className="flex items-center justify-center h-screen">
+    <Loader2 className="h-10 w-10 animate-spin text-padel-primary" />
+  </div>
+);
 
 // Protected route component that checks for admin or employee role based on allowedRoles
 const ProtectedRoute = ({ 
@@ -26,15 +36,16 @@ const ProtectedRoute = ({
   allowedRoles?: Array<'admin' | 'employee'>;
 }) => {
   const { user, loading, isAdmin, isEmployee } = useAuth();
+  const location = useLocation();
   
   // Show loading state while checking auth
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <LoadingScreen />;
   }
   
   // If not authenticated, redirect to login
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
   
   // Check if user has allowed role
@@ -45,11 +56,17 @@ const ProtectedRoute = ({
   
   // If the user doesn't have an allowed role, redirect to a restricted page
   if (!hasAllowedRole) {
-    return <Navigate to="/restricted" replace />;
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <h1 className="text-2xl font-bold mb-4">Access Restricted</h1>
+        <p className="mb-4">You don't have permission to access this page.</p>
+        <Navigate to="/" replace />
+      </div>
+    );
   }
   
   // If user is authenticated and has allowed role, render the children
-  return <>{children}</>;
+  return <Suspense fallback={<LoadingScreen />}>{children}</Suspense>;
 };
 
 const App = () => {
@@ -62,16 +79,14 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               {/* Public route */}
-              <Route path="/login" element={<LoginPage />} />
-              
-              {/* Restricted access page */}
-              <Route path="/restricted" element={
-                <div className="flex flex-col items-center justify-center h-screen">
-                  <h1 className="text-2xl font-bold mb-4">Access Restricted</h1>
-                  <p className="mb-4">You don't have permission to access this page.</p>
-                  <Navigate to="/" replace />
-                </div>
-              } />
+              <Route 
+                path="/login" 
+                element={
+                  <Suspense fallback={<LoadingScreen />}>
+                    <LoginPage />
+                  </Suspense>
+                } 
+              />
               
               {/* Protected routes - accessible by both admin and employee */}
               <Route path="/" element={
