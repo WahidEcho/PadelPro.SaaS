@@ -9,7 +9,6 @@ import {
   TrendingDown, 
   TrendingUp, 
   Calendar,
-  ClipboardList,
   Users,
   Plus 
 } from "lucide-react";
@@ -23,6 +22,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+
+interface RevenueByGroup {
+  group_name: string;
+  total_revenue: number;
+}
 
 const Index = () => {
   const [todayRevenue, setTodayRevenue] = useState<number>(0);
@@ -119,10 +123,9 @@ const Index = () => {
         setTodayReservations(reservationsWithDetails);
 
         // Fetch revenue by court category for the selected date
-        const { data: categoryRevenueData, error: categoryRevenueError } = await supabase
-          .rpc('get_revenue_by_court_group', {
-            target_date: selectedDateStr
-          });
+        const { data: categoryRevenueData, error: categoryRevenueError } = await supabase.rpc('get_revenue_by_court_group', {
+          target_date: selectedDateStr
+        });
 
         if (categoryRevenueError) {
           throw categoryRevenueError;
@@ -130,7 +133,7 @@ const Index = () => {
 
         if (categoryRevenueData) {
           const revenueMap: {[key: string]: number} = {};
-          categoryRevenueData.forEach((item: any) => {
+          categoryRevenueData.forEach((item: RevenueByGroup) => {
             revenueMap[item.group_name || 'Uncategorized'] = Number(item.total_revenue) || 0;
           });
           setRevenueByCategory(revenueMap);
@@ -200,7 +203,9 @@ const Index = () => {
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">
-              <RevenueChart className="md:col-span-4" />
+              <div className="md:col-span-4">
+                <RevenueChart />
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
@@ -298,7 +303,6 @@ const Index = () => {
                         selected={selectedDate}
                         onSelect={(date) => setSelectedDate(date || new Date())}
                         initialFocus
-                        className={cn("p-3 pointer-events-auto")}
                       />
                     </PopoverContent>
                   </Popover>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Input } from "@/components/ui/input";
@@ -94,10 +93,10 @@ const SettingsPage = () => {
         const employeeList: UserWithRole[] = [];
         
         for (const userRole of users) {
-          const { data: { users: authUsers }, error: authError } = await supabase.auth.admin.listUsers({
-            filters: {
-              user_ids: [userRole.user_id],
-            },
+          const { data, error: authError } = await supabase.auth.admin.listUsers({
+            page: 1, 
+            perPage: 1,
+            query: userRole.user_id
           });
           
           if (authError) {
@@ -105,12 +104,12 @@ const SettingsPage = () => {
             continue;
           }
           
-          if (authUsers && authUsers.length > 0) {
+          if (data.users && data.users.length > 0) {
             employeeList.push({
-              id: authUsers[0].id,
-              email: authUsers[0].email || 'Unknown',
+              id: data.users[0].id,
+              email: data.users[0].email || 'Unknown',
               role: userRole.role,
-              created_at: authUsers[0].created_at || '',
+              created_at: data.users[0].created_at || '',
             });
           }
         }

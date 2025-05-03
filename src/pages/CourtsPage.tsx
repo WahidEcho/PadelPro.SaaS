@@ -6,12 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CourtsScheduleView } from "@/components/courts/CourtsScheduleView";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Court, Reservation, CourtsWithGroup } from "@/types/supabase";
+import { ReservationWithDetails, CourtsWithGroup } from "@/types/supabase";
 import { Loader2 } from "lucide-react";
 
 const CourtsPage = () => {
   const [courts, setCourts] = useState<CourtsWithGroup[]>([]);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [reservations, setReservations] = useState<ReservationWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 

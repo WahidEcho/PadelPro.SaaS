@@ -30,3 +30,9 @@ export type CourtsWithGroup = Court & {
 export type ExpenseWithCategory = Expense & {
   category_name?: string;
 };
+
+// Type for revenue by court group RPC function result
+export interface RevenueByGroup {
+  group_name: string;
+  total_revenue: number;
+}

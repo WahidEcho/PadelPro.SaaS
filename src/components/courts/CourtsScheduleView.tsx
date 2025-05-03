@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
-import { Reservation, Court } from '@/types/supabase';
+import { ReservationWithDetails, Court } from '@/types/supabase';
 import { cn } from '@/lib/utils';
 
 interface TimeSlot {
@@ -17,7 +17,7 @@ interface TimeSlot {
 
 interface CourtsScheduleViewProps {
   courts: Court[];
-  reservations: Reservation[];
+  reservations: ReservationWithDetails[];
 }
 
 export function CourtsScheduleView({ courts, reservations }: CourtsScheduleViewProps) {
