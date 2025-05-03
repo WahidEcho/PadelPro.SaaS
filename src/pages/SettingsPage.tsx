@@ -93,11 +93,7 @@ const SettingsPage = () => {
         const employeeList: UserWithRole[] = [];
         
         for (const userRole of users) {
-          const { data, error: authError } = await supabase.auth.admin.listUsers({
-            page: 1, 
-            perPage: 1,
-            query: userRole.user_id
-          });
+          const { data, error: authError } = await supabase.auth.admin.getUserById(userRole.user_id);
           
           if (authError) {
             console.error('Error fetching user details:', authError);

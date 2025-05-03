@@ -16,6 +16,7 @@ const ClientsPage = lazy(() => import("./pages/ClientsPage"));
 const FinancialsPage = lazy(() => import("./pages/FinancialsPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const AdminSetup = lazy(() => import("./pages/AdminSetup"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -78,12 +79,20 @@ const App = () => {
           <Sonner />
           <BrowserRouter>
             <Routes>
-              {/* Public route */}
+              {/* Public routes */}
               <Route 
                 path="/login" 
                 element={
                   <Suspense fallback={<LoadingScreen />}>
                     <LoginPage />
+                  </Suspense>
+                } 
+              />
+              <Route 
+                path="/admin-setup" 
+                element={
+                  <Suspense fallback={<LoadingScreen />}>
+                    <AdminSetup />
                   </Suspense>
                 } 
               />
