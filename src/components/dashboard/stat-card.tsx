@@ -32,23 +32,14 @@ export function StatCard({
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">
-          {typeof value === "number" ? (
-            <span
-              className={cn({
-                "text-green-500": positive || trend === "up",
-                "text-red-500": negative || trend === "down",
-              })}
-            >
-              {value.toLocaleString("en-US", {
-                style: "currency",
-                currency: "USD",
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-              })}
-            </span>
-          ) : (
-            value
-          )}
+          <span
+            className={cn({
+              "text-green-500": positive || trend === "up",
+              "text-red-500": negative || trend === "down",
+            })}
+          >
+            {value}
+          </span>
         </div>
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>
