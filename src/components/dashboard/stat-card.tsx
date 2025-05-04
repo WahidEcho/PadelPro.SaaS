@@ -6,11 +6,12 @@ import { LucideIcon } from "lucide-react";
 interface StatCardProps {
   title: string;
   value: string | number;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   description?: string;
   className?: string;
   positive?: boolean;
   negative?: boolean;
+  trend?: "up" | "down" | "neutral";
 }
 
 export function StatCard({
@@ -21,20 +22,21 @@ export function StatCard({
   className,
   positive,
   negative,
+  trend,
 }: StatCardProps) {
   return (
     <Card className={cn("overflow-hidden", className)}>
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">
           {typeof value === "number" ? (
             <span
               className={cn({
-                "text-green-500": positive,
-                "text-red-500": negative,
+                "text-green-500": positive || trend === "up",
+                "text-red-500": negative || trend === "down",
               })}
             >
               {value.toLocaleString("en-US", {
