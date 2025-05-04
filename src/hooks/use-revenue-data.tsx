@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { RevenueByGroup } from "@/types/supabase";
-import { DateRange } from "react-day-picker";
 
 export function useRevenueData(startDate: Date, endDate: Date, isAdmin: boolean) {
   const { toast } = useToast();
@@ -45,7 +44,9 @@ export function useRevenueData(startDate: Date, endDate: Date, isAdmin: boolean)
               };
             }
             
-            acc[groupId].total_revenue += parseFloat(item.amount);
+            // Ensure amount is treated as a number
+            const amount = typeof item.amount === 'string' ? parseFloat(item.amount) : item.amount;
+            acc[groupId].total_revenue += amount;
             return acc;
           }, {});
           

@@ -6,8 +6,8 @@ import { DateRange } from "react-day-picker";
 import { addDays, subDays } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 
-// Import our new components
-import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+// Import our components with updated naming
+import { DashboardPageHeader } from "@/components/dashboard/dashboard-page-header";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { RevenueByCourtGroup } from "@/components/dashboard/revenue-by-court-group";
 import { DashboardStats } from "@/components/dashboard/dashboard-stats";
@@ -28,8 +28,8 @@ const Index = () => {
   return (
     <DashboardLayout>
       <div className="flex flex-col">
-        {/* Dashboard Header with Date Range Picker */}
-        <DashboardHeader date={date} setDate={setDate} />
+        {/* Dashboard Header with Date Range Picker - updated name */}
+        <DashboardPageHeader date={date} setDate={setDate} />
         
         {/* Quick Actions */}
         <QuickActions isAdmin={isAdmin} />
