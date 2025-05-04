@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -81,18 +80,25 @@ const ReservationsPage = () => {
 
         setCourts(courtsData);
 
-        // Fetch clients
+        // Fetch clients with better error handling
         const { data: clientsData, error: clientsError } = await supabase
           .from('clients')
           .select('*');
         
         if (clientsError) {
-          throw clientsError;
+          console.error('Error fetching clients:', clientsError);
+          toast({
+            title: "Error",
+            description: "Failed to fetch client data",
+            variant: "destructive",
+          });
+          // Continue with empty clients array rather than throwing
+          setClients([]);
+        } else {
+          setClients(clientsData || []);
         }
 
-        setClients(clientsData);
-
-        // Fetch reservations
+        // Fetch reservations with better error handling
         const { data: reservationsData, error: reservationsError } = await supabase
           .from('reservations')
           .select(`
@@ -103,17 +109,24 @@ const ReservationsPage = () => {
           .order('date', { ascending: false });
         
         if (reservationsError) {
-          throw reservationsError;
+          console.error('Error fetching reservations:', reservationsError);
+          toast({
+            title: "Error",
+            description: "Failed to fetch reservation data",
+            variant: "destructive",
+          });
+          // Continue with empty reservations array
+          setReservations([]);
+        } else {
+          // Format reservations data with client and court names
+          const reservationsWithDetails = reservationsData.map((res: any) => ({
+            ...res,
+            client_name: res.clients?.name || 'Unknown',
+            court_name: res.courts?.name || 'Unknown'
+          }));
+
+          setReservations(reservationsWithDetails);
         }
-
-        // Format reservations data with client and court names
-        const reservationsWithDetails = reservationsData.map((res: any) => ({
-          ...res,
-          client_name: res.clients.name,
-          court_name: res.courts.name
-        }));
-
-        setReservations(reservationsWithDetails);
 
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -200,7 +213,7 @@ const ReservationsPage = () => {
     setIsSubmitting(true);
     
     try {
-      // Insert reservation into Supabase
+      // Insert reservation into Supabase with better error handling
       const { data: reservationData, error: reservationError } = await supabase
         .from('reservations')
         .insert([
@@ -221,19 +234,22 @@ const ReservationsPage = () => {
       }
       
       // Also create a transaction for this reservation
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert([
-          {
-            reservation_id: reservationData[0].id,
-            amount: amount,
-            payment_method: paymentMethod,
-            date: format(date, 'yyyy-MM-dd')
-          }
-        ]);
-        
-      if (transactionError) {
-        throw transactionError;
+      if (reservationData && reservationData.length > 0) {
+        const { error: transactionError } = await supabase
+          .from('transactions')
+          .insert([
+            {
+              reservation_id: reservationData[0].id,
+              amount: amount,
+              payment_method: paymentMethod,
+              date: format(date, 'yyyy-MM-dd')
+            }
+          ]);
+          
+        if (transactionError) {
+          console.error('Error creating transaction:', transactionError);
+          // Just log the error but don't throw - reservation was already created
+        }
       }
       
       // Find client and court for display names
@@ -241,13 +257,15 @@ const ReservationsPage = () => {
       const court = courts.find((c) => c.id === selectedCourt);
       
       // Add new reservation to state
-      const newReservation: ReservationWithDetails = {
-        ...reservationData[0],
-        client_name: client?.name,
-        court_name: court?.name
-      };
-      
-      setReservations([newReservation, ...reservations]);
+      if (reservationData && reservationData.length > 0) {
+        const newReservation: ReservationWithDetails = {
+          ...reservationData[0],
+          client_name: client?.name || 'Unknown',
+          court_name: court?.name || 'Unknown'
+        };
+        
+        setReservations([newReservation, ...reservations]);
+      }
       
       // Reset form
       setSelectedCourt("");
@@ -263,11 +281,11 @@ const ReservationsPage = () => {
         title: "Reservation added",
         description: `Reservation has been added successfully`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding reservation:', error);
       toast({
         title: "Error",
-        description: "Failed to add reservation",
+        description: error.message || "Failed to add reservation",
         variant: "destructive",
       });
     } finally {

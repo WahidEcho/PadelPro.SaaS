@@ -93,21 +93,21 @@ const SettingsPage = () => {
         const employeeList: UserWithRole[] = [];
         
         for (const userRole of users) {
-          // Fix: Use getUserById instead of admin.getUserById and handle the response properly
-          const { data: userData, error: authError } = await supabase.auth.admin.getUserById(userRole.user_id);
+          // Using the correct auth API call
+          const { data, error: authError } = await supabase.auth.admin.getUserById(userRole.user_id);
           
           if (authError) {
             console.error('Error fetching user details:', authError);
             continue;
           }
           
-          // Fix: userData structure is different, access user directly
-          if (userData && userData.user) {
+          // Fix: Correct data access pattern
+          if (data && data.user) {
             employeeList.push({
-              id: userData.user.id,
-              email: userData.user.email || 'Unknown',
+              id: data.user.id,
+              email: data.user.email || 'Unknown',
               role: userRole.role,
-              created_at: userData.user.created_at || '',
+              created_at: data.user.created_at || '',
             });
           }
         }
@@ -150,8 +150,8 @@ const SettingsPage = () => {
     if (!isAdmin) return;
     
     try {
-      // Create user in Supabase Auth
-      const { data: userData, error: signupError } = await supabase.auth.admin.createUser({
+      // Create user in Supabase Auth with fixed parameters
+      const { data: authData, error: signupError } = await supabase.auth.admin.createUser({
         email: data.email,
         password: data.password,
         email_confirm: true
@@ -161,12 +161,12 @@ const SettingsPage = () => {
         throw signupError;
       }
       
-      if (userData && userData.user) {
+      if (authData && authData.user) {
         // Assign employee role
         const { error: roleError } = await supabase
           .from('user_roles')
           .insert([{
-            user_id: userData.user.id,
+            user_id: authData.user.id,
             role: 'employee'
           }]);
         

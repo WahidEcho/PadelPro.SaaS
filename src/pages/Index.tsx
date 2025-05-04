@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,16 +39,43 @@ const Index = () => {
     const fetchRevenueData = async () => {
       setIsLoading(true);
       try {
-        // Call the correct RPC function with the right name
-        const { data, error } = await supabase.rpc('get_revenue_by_group', {
-          start_date: startDate.toISOString(),
-          end_date: endDate.toISOString()
-        });
+        // Fix: Using a direct query approach instead of RPC to avoid type errors
+        const { data, error } = await supabase
+          .from('reservations')
+          .select(`
+            amount,
+            courts!inner (
+              name,
+              court_groups!inner (
+                id,
+                name
+              )
+            )
+          `)
+          .gte('date', startDate.toISOString().split('T')[0])
+          .lte('date', endDate.toISOString().split('T')[0]);
         
         if (error) throw error;
         
         if (data && Array.isArray(data)) {
-          setRevenueByGroup(data as RevenueByGroup[]);
+          // Process the data to group by court group
+          const groupedData = data.reduce((acc: Record<string, any>, item) => {
+            const groupId = item.courts.court_groups.id;
+            const groupName = item.courts.court_groups.name;
+            
+            if (!acc[groupId]) {
+              acc[groupId] = {
+                group_name: groupName,
+                total_revenue: 0
+              };
+            }
+            
+            acc[groupId].total_revenue += parseFloat(item.amount);
+            return acc;
+          }, {});
+          
+          const formattedData = Object.values(groupedData) as RevenueByGroup[];
+          setRevenueByGroup(formattedData);
         } else {
           setRevenueByGroup([]);
         }
@@ -134,8 +160,8 @@ const Index = () => {
                   </div>
                 ) : revenueByGroup.length > 0 ? (
                   <div className="space-y-4">
-                    {revenueByGroup.map((item) => (
-                      <div key={item.group_name} className="flex justify-between items-center p-3 bg-muted/50 rounded-md">
+                    {revenueByGroup.map((item, index) => (
+                      <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-md">
                         <span className="font-medium">{item.group_name}</span>
                         <span className="text-xl font-bold">${parseFloat(item.total_revenue.toString()).toFixed(2)}</span>
                       </div>
