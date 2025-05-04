@@ -93,19 +93,21 @@ const SettingsPage = () => {
         const employeeList: UserWithRole[] = [];
         
         for (const userRole of users) {
-          const { data, error: authError } = await supabase.auth.admin.getUserById(userRole.user_id);
+          // Fix: Use getUserById instead of admin.getUserById and handle the response properly
+          const { data: userData, error: authError } = await supabase.auth.admin.getUserById(userRole.user_id);
           
           if (authError) {
             console.error('Error fetching user details:', authError);
             continue;
           }
           
-          if (data.users && data.users.length > 0) {
+          // Fix: userData structure is different, access user directly
+          if (userData && userData.user) {
             employeeList.push({
-              id: data.users[0].id,
-              email: data.users[0].email || 'Unknown',
+              id: userData.user.id,
+              email: userData.user.email || 'Unknown',
               role: userRole.role,
-              created_at: data.users[0].created_at || '',
+              created_at: userData.user.created_at || '',
             });
           }
         }

@@ -136,6 +136,30 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          created_at: string | null
+          full_name: string | null
+          id: number
+          password: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          full_name?: string | null
+          id?: never
+          password?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          full_name?: string | null
+          id?: never
+          password?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       reservations: {
         Row: {
           amount: number
