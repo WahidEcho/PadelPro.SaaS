@@ -1,8 +1,11 @@
 
-import React from "react";
+import React, { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Calendar, Plus, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { CalendarClock, Users, CreditCard } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface QuickActionsProps {
   isAdmin: boolean;
@@ -10,41 +13,69 @@ interface QuickActionsProps {
 
 export function QuickActions({ isAdmin }: QuickActionsProps) {
   const navigate = useNavigate();
-
-  const handleQuickAction = (route: string) => {
-    navigate(route);
-  };
-
+  const { toast } = useToast();
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-      <Button
-        variant="outline"
-        className="flex items-center justify-center h-24 text-lg font-medium gap-2"
-        onClick={() => handleQuickAction("/reservations?action=create")}
-      >
-        <CalendarClock className="h-6 w-6" />
-        <span>New Reservation</span>
-      </Button>
-      
-      <Button
-        variant="outline"
-        className="flex items-center justify-center h-24 text-lg font-medium gap-2"
-        onClick={() => handleQuickAction("/clients?action=create")}
-      >
-        <Users className="h-6 w-6" />
-        <span>New Client</span>
-      </Button>
-      
-      {isAdmin && (
-        <Button
-          variant="outline"
-          className="flex items-center justify-center h-24 text-lg font-medium gap-2"
-          onClick={() => handleQuickAction("/financials?action=createExpense")}
-        >
-          <CreditCard className="h-6 w-6" />
-          <span>New Expense</span>
-        </Button>
-      )}
-    </div>
+    <Card className="mt-6">
+      <CardContent className="p-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          <Button 
+            onClick={() => navigate('/reservations')}
+            variant="outline" 
+            className="h-20 flex flex-col items-center justify-center space-y-2"
+          >
+            <Calendar className="h-5 w-5" />
+            <span>New Reservation</span>
+          </Button>
+          
+          <Button 
+            onClick={() => navigate('/clients')}
+            variant="outline" 
+            className="h-20 flex flex-col items-center justify-center space-y-2"
+          >
+            <Users className="h-5 w-5" />
+            <span>Add Client</span>
+          </Button>
+          
+          {isAdmin && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="h-20 flex flex-col items-center justify-center space-y-2"
+                >
+                  <Plus className="h-5 w-5" />
+                  <span>Add Court</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Court</DialogTitle>
+                  <DialogDescription>
+                    Create a new court in the Court Management page.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={() => {
+                    setIsDialogOpen(false);
+                    navigate('/courts');
+                    toast({
+                      title: "Navigation",
+                      description: "Redirecting to Court Management"
+                    });
+                  }}>
+                    Go to Courts
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

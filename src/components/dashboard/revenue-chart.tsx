@@ -1,60 +1,121 @@
 
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
-
-// Dummy data - later will be replaced with actual data
-const data = [
-  { name: "Jan", revenue: 4000, expenses: 2400 },
-  { name: "Feb", revenue: 3000, expenses: 1398 },
-  { name: "Mar", revenue: 2000, expenses: 9800 },
-  { name: "Apr", revenue: 2780, expenses: 3908 },
-  { name: "May", revenue: 1890, expenses: 4800 },
-  { name: "Jun", revenue: 2390, expenses: 3800 },
-];
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { format, subDays, addDays, eachDayOfInterval } from "date-fns";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function RevenueChart() {
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRevenueData = async () => {
+      setIsLoading(true);
+      
+      try {
+        // Get data for the last 7 days
+        const endDate = new Date();
+        const startDate = subDays(endDate, 6); // 7 days total including today
+        
+        // Create an array of all days in the range
+        const daysRange = eachDayOfInterval({ 
+          start: startDate, 
+          end: endDate 
+        });
+        
+        // Initialize the data array with all days and zero values
+        const initialData = daysRange.map(day => ({
+          date: format(day, 'yyyy-MM-dd'),
+          displayDate: format(day, 'MMM dd'),
+          revenue: 0,
+          expenses: 0
+        }));
+        
+        // Fetch revenue data (from reservations)
+        const { data: revenueData, error: revenueError } = await supabase
+          .from('reservations')
+          .select('date, amount')
+          .gte('date', format(startDate, 'yyyy-MM-dd'))
+          .lte('date', format(endDate, 'yyyy-MM-dd'));
+          
+        if (revenueError) throw revenueError;
+        
+        // Fetch expense data
+        const { data: expenseData, error: expenseError } = await supabase
+          .from('expenses')
+          .select('date, amount')
+          .gte('date', format(startDate, 'yyyy-MM-dd'))
+          .lte('date', format(endDate, 'yyyy-MM-dd'));
+          
+        if (expenseError) throw expenseError;
+        
+        // Aggregate the data by date
+        const aggregatedData = [...initialData];
+        
+        // Add revenue data
+        if (revenueData) {
+          revenueData.forEach(item => {
+            const index = aggregatedData.findIndex(d => d.date === item.date);
+            if (index !== -1) {
+              const amount = typeof item.amount === 'string' ? parseFloat(item.amount) : item.amount;
+              aggregatedData[index].revenue += amount;
+            }
+          });
+        }
+        
+        // Add expense data
+        if (expenseData) {
+          expenseData.forEach(item => {
+            const index = aggregatedData.findIndex(d => d.date === item.date);
+            if (index !== -1) {
+              const amount = typeof item.amount === 'string' ? parseFloat(item.amount) : item.amount;
+              aggregatedData[index].expenses += amount;
+            }
+          });
+        }
+        
+        // Update chart data
+        setChartData(aggregatedData);
+      } catch (error) {
+        console.error('Error fetching revenue chart data:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchRevenueData();
+  }, []);
+  
   return (
-    <Card className="col-span-4">
+    <Card>
       <CardHeader>
-        <CardTitle>Revenue vs Expenses</CardTitle>
-        <CardDescription>
-          Monthly comparison of revenue and expenses
-        </CardDescription>
+        <CardTitle>Revenue & Expenses</CardTitle>
+        <CardDescription>Daily revenue and expenses for the last 7 days</CardDescription>
       </CardHeader>
-      <CardContent className="pt-4">
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={data}
-              margin={{
-                top: 5,
-                right: 30,
-                left: 20,
-                bottom: 5,
-              }}
-            >
+      <CardContent>
+        {isLoading ? (
+          <div className="w-full h-[300px] flex items-center justify-center">
+            <div className="space-y-4 w-full">
+              <Skeleton className="h-[300px] w-full" />
+            </div>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
+              <XAxis dataKey="displayDate" />
               <YAxis />
               <Tooltip 
-                formatter={(value) => [`$${value}`, undefined]}
-                labelFormatter={(value) => `Month: ${value}`}
+                formatter={(value: number) => `$${value.toFixed(2)}`}
+                labelFormatter={(label) => `Date: ${label}`}
               />
-              <Legend />
-              <Bar dataKey="revenue" fill="#9b87f5" name="Revenue" />
-              <Bar dataKey="expenses" fill="#ea384c" name="Expenses" />
+              <Bar dataKey="revenue" fill="#22c55e" name="Revenue" />
+              <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
             </BarChart>
           </ResponsiveContainer>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
