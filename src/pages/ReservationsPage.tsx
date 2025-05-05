@@ -24,7 +24,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { format, addHours, isBefore, parseISO } from "date-fns";
-import { CalendarIcon, Plus, Search, Loader2 } from "lucide-react";
+import { CalendarIcon, Plus, Search, Loader2, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -44,6 +44,16 @@ import {
 } from "@/components/ui/tabs";
 import { supabase } from '@/integrations/supabase/client';
 import { Court, Client, Reservation, ReservationWithDetails } from "@/types/supabase";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 
 const ReservationsPage = () => {
   const [reservations, setReservations] = useState<ReservationWithDetails[]>([]);
@@ -61,6 +71,10 @@ const ReservationsPage = () => {
   const [selectedTab, setSelectedTab] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editReservation, setEditReservation] = useState<ReservationWithDetails | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteReservationId, setDeleteReservationId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   const { toast } = useToast();
 
@@ -469,7 +483,7 @@ const ReservationsPage = () => {
                     <SelectContent>
                       {clients.map((client) => (
                         <SelectItem key={client.id} value={client.id}>
-                          {client.name} ({client.client_id})
+                          {client.name}{client.phone ? ` (${client.phone})` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -567,12 +581,13 @@ const ReservationsPage = () => {
                           <th className="p-4 text-left font-medium">Amount</th>
                           <th className="p-4 text-left font-medium">Payment</th>
                           <th className="p-4 text-left font-medium">Status</th>
+                          <th className="p-4 text-left font-medium">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="[&_tr:last-child]:border-0">
                         {filteredReservations.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="p-4 text-center text-muted-foreground">
+                            <td colSpan={8} className="p-4 text-center text-muted-foreground">
                               No reservations found.
                             </td>
                           </tr>
@@ -607,6 +622,29 @@ const ReservationsPage = () => {
                                       : "Past"}
                                   </span>
                                 </td>
+                                <td className="p-4 flex gap-2">
+                                  <Button size="icon" variant="ghost" onClick={() => {
+                                    function padTime(t) {
+                                      if (!t) return '';
+                                      const [h, m] = t.split(":");
+                                      return h.padStart(2, "0") + ":" + m.padStart(2, "0");
+                                    }
+                                    setEditReservation(res);
+                                    setDate(new Date(res.date));
+                                    setSelectedCourt(res.court_id);
+                                    setTimeStart(padTime(res.time_start));
+                                    setTimeEnd(padTime(res.time_end));
+                                    setSelectedClient(res.client_id);
+                                    setAmount(res.amount);
+                                    setPaymentMethod(res.payment_method as "cash" | "card" | "wallet");
+                                    setEditDialogOpen(true);
+                                  }}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" onClick={() => { setDeleteReservationId(res.id); setDeleteDialogOpen(true); }}>
+                                    <Trash2 className="h-4 w-4 text-red-500" />
+                                  </Button>
+                                </td>
                               </tr>
                             );
                           })
@@ -620,6 +658,201 @@ const ReservationsPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Reservation Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Reservation</DialogTitle>
+            <DialogDescription>Edit the details of this reservation.</DialogDescription>
+          </DialogHeader>
+          {editReservation && (
+            <div className="grid gap-4 py-4">
+              <div>
+                <Label htmlFor="edit-date">Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {date ? format(date, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={date}
+                      onSelect={setDate}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label htmlFor="edit-court">Court</Label>
+                <Select
+                  value={selectedCourt}
+                  onValueChange={(value) => setSelectedCourt(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select court" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courts.map((court) => (
+                      <SelectItem key={court.id} value={court.id}>
+                        {court.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-time-start">Start Time</Label>
+                  <Select
+                    value={timeStart}
+                    onValueChange={handleTimeStartChange}
+                  >
+                    <SelectTrigger id="edit-time-start">
+                      <SelectValue placeholder="Start time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timeSlots.map((time) => (
+                        <SelectItem key={`edit-start-${time}`} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="edit-time-end">End Time</Label>
+                  <Select
+                    value={timeEnd}
+                    onValueChange={(value) => setTimeEnd(value)}
+                  >
+                    <SelectTrigger id="edit-time-end">
+                      <SelectValue placeholder="End time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timeSlots.map((time) => (
+                        <SelectItem key={`edit-end-${time}`} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="edit-client">Client</Label>
+                <Select
+                  value={selectedClient}
+                  onValueChange={(value) => setSelectedClient(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.name}{client.phone ? ` (${client.phone})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-amount">Amount ($)</Label>
+                  <Input
+                    id="edit-amount"
+                    type="number"
+                    value={amount}
+                    onChange={(e) => setAmount(Number(e.target.value))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-payment-method">Payment Method</Label>
+                  <Select
+                    value={paymentMethod}
+                    onValueChange={(value) => setPaymentMethod(value as "cash" | "card" | "wallet")}
+                  >
+                    <SelectTrigger id="edit-payment-method">
+                      <SelectValue placeholder="Select method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">Cash</SelectItem>
+                      <SelectItem value="card">Card</SelectItem>
+                      <SelectItem value="wallet">Wallet</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={async () => {
+              if (!editReservation) return;
+              // Update reservation in Supabase
+              await supabase.from('reservations').update({
+                client_id: selectedClient,
+                court_id: selectedCourt,
+                date: format(date!, 'yyyy-MM-dd'),
+                time_start: timeStart,
+                time_end: timeEnd,
+                amount: amount,
+                payment_method: paymentMethod
+              }).eq('id', editReservation.id);
+              setReservations(reservations.map(r => r.id === editReservation.id ? {
+                ...r,
+                client_id: selectedClient,
+                court_id: selectedCourt,
+                date: format(date!, 'yyyy-MM-dd'),
+                time_start: timeStart,
+                time_end: timeEnd,
+                amount: amount,
+                payment_method: paymentMethod,
+                client_name: clients.find(c => c.id === selectedClient)?.name || r.client_name,
+                court_name: courts.find(c => c.id === selectedCourt)?.name || r.court_name
+              } : r));
+              setEditDialogOpen(false);
+              setEditReservation(null);
+            }}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Reservation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete the reservation and cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
+              if (!deleteReservationId) return;
+              await supabase.from('reservations').delete().eq('id', deleteReservationId);
+              setReservations(reservations.filter(r => r.id !== deleteReservationId));
+              setDeleteDialogOpen(false);
+              setDeleteReservationId(null);
+            }}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };

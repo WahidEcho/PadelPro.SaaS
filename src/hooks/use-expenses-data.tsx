@@ -1,13 +1,13 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Expense } from "@/types/supabase";
+import { ExpenseWithCategory, ExpenseCategory } from "@/types/supabase";
 
 export function useExpensesData() {
   const { toast } = useToast();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseWithCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
 
   // Fetch all expenses
   const fetchExpenses = async () => {
@@ -33,8 +33,27 @@ export function useExpensesData() {
     }
   };
 
+  // Fetch all categories
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_categories')
+        .select('*')
+        .order('name');
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch categories",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Create a new expense
-  const createExpense = async (expenseData: Partial<Expense>) => {
+  const createExpense = async (expenseData: Partial<ExpenseWithCategory>) => {
     try {
       // Make sure required fields are present
       if (!expenseData.title || !expenseData.amount || !expenseData.date) {
@@ -69,8 +88,29 @@ export function useExpensesData() {
     }
   };
 
+  // Create a new category
+  const createCategory = async (name: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_categories')
+        .insert([{ name }])
+        .select();
+      if (error) throw error;
+      fetchCategories();
+      return { success: true, data };
+    } catch (error) {
+      console.error('Error creating category:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create category",
+        variant: "destructive",
+      });
+      return { success: false, error };
+    }
+  };
+
   // Update an expense
-  const updateExpense = async (id: string, expenseData: Partial<Expense>) => {
+  const updateExpense = async (id: string, expenseData: Partial<ExpenseWithCategory>) => {
     try {
       const { data, error } = await supabase
         .from('expenses')
@@ -120,9 +160,10 @@ export function useExpensesData() {
     }
   };
 
-  // Load expenses on first render
+  // Load expenses and categories on first render
   useEffect(() => {
     fetchExpenses();
+    fetchCategories();
   }, []);
 
   return {
@@ -131,6 +172,9 @@ export function useExpensesData() {
     fetchExpenses,
     createExpense,
     updateExpense,
-    deleteExpense
+    deleteExpense,
+    categories,
+    createCategory,
+    fetchCategories,
   };
 }

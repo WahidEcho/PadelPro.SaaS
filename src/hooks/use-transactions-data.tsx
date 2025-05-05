@@ -1,12 +1,11 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Transaction } from "@/types/supabase";
+import { TransactionWithDetails } from "@/types/supabase";
 
 export function useTransactionsData() {
   const { toast } = useToast();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<TransactionWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch all transactions
@@ -15,7 +14,7 @@ export function useTransactionsData() {
     try {
       const { data, error } = await supabase
         .from('transactions')
-        .select('*, reservations!inner(id)')
+        .select('*, reservations!inner(id, clients(name), courts!inner(name, court_groups(name)))')
         .order('date', { ascending: false });
         
       if (error) throw error;
@@ -34,7 +33,7 @@ export function useTransactionsData() {
   };
 
   // Create a new transaction
-  const createTransaction = async (transactionData: Partial<Transaction>) => {
+  const createTransaction = async (transactionData: Partial<TransactionWithDetails>) => {
     try {
       // Make sure required fields are present
       if (!transactionData.amount || !transactionData.date || !transactionData.payment_method) {
@@ -69,7 +68,7 @@ export function useTransactionsData() {
   };
 
   // Update a transaction
-  const updateTransaction = async (id: string, transactionData: Partial<Transaction>) => {
+  const updateTransaction = async (id: string, transactionData: Partial<TransactionWithDetails>) => {
     try {
       const { data, error } = await supabase
         .from('transactions')

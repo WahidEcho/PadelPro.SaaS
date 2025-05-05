@@ -1,4 +1,3 @@
-
 import { Database } from "@/integrations/supabase/types";
 
 // Export the Database type from the generated types file
@@ -36,3 +35,11 @@ export interface RevenueByGroup {
   group_name: string;
   total_revenue: number;
 }
+
+export type TransactionWithDetails = Transaction & {
+  reservations?: {
+    id: string;
+    clients?: { name?: string } | null;
+    courts?: { name?: string; court_groups?: { name?: string } | null } | null;
+  } | null;
+};
