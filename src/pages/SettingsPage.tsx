@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Input } from "@/components/ui/input";
@@ -52,16 +53,36 @@ const createEmployeeSchema = z.object({
   path: ["confirmPassword"],
 });
 
+// Schema for profile update
+const profileUpdateSchema = z.object({
+  name: z.string().min(1, { message: "Name is required" }),
+  email: z.string().email({ message: "Please enter a valid email address" }),
+});
+
+// Schema for password update
+const passwordUpdateSchema = z.object({
+  currentPassword: z.string().min(6, { message: "Current password is required" }),
+  newPassword: z.string().min(6, { message: "Password must be at least 6 characters" }),
+  confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters" }),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
 type CreateEmployeeFormValues = z.infer<typeof createEmployeeSchema>;
+type ProfileUpdateFormValues = z.infer<typeof profileUpdateSchema>;
+type PasswordUpdateFormValues = z.infer<typeof passwordUpdateSchema>;
 
 const SettingsPage = () => {
   const { toast } = useToast();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, updateProfile, updatePassword } = useAuth();
   const [employees, setEmployees] = useState<UserWithRole[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  
-  const form = useForm<CreateEmployeeFormValues>({
+  const [isSaving, setIsSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const createEmployeeForm = useForm<CreateEmployeeFormValues>({
     resolver: zodResolver(createEmployeeSchema),
     defaultValues: {
       email: "",
@@ -69,6 +90,31 @@ const SettingsPage = () => {
       confirmPassword: "",
     },
   });
+
+  const profileForm = useForm<ProfileUpdateFormValues>({
+    resolver: zodResolver(profileUpdateSchema),
+    defaultValues: {
+      name: user?.user_metadata?.full_name || "",
+      email: user?.email || "",
+    },
+  });
+
+  const passwordForm = useForm<PasswordUpdateFormValues>({
+    resolver: zodResolver(passwordUpdateSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  });
+
+  // Update form when user data changes
+  useEffect(() => {
+    if (user) {
+      profileForm.setValue("name", user.user_metadata?.full_name || "");
+      profileForm.setValue("email", user.email || "");
+    }
+  }, [user, profileForm]);
 
   // Fetch employees with their roles
   const fetchEmployees = async () => {
@@ -93,21 +139,22 @@ const SettingsPage = () => {
         const employeeList: UserWithRole[] = [];
         
         for (const userRole of users) {
-          // Using the correct auth API call
-          const { data, error: authError } = await supabase.auth.admin.getUserById(userRole.user_id);
+          // Get user details from auth.users
+          const { data: userData, error: userError } = await supabase.auth.admin.getUserById(
+            userRole.user_id
+          );
           
-          if (authError) {
-            console.error('Error fetching user details:', authError);
+          if (userError) {
+            console.error('Error fetching user details:', userError);
             continue;
           }
           
-          // Fix: Correct data access pattern
-          if (data && data.user) {
+          if (userData && userData.user) {
             employeeList.push({
-              id: data.user.id,
-              email: data.user.email || 'Unknown',
+              id: userData.user.id,
+              email: userData.user.email || 'Unknown',
               role: userRole.role,
-              created_at: data.user.created_at || '',
+              created_at: userData.user.created_at || '',
             });
           }
         }
@@ -130,27 +177,74 @@ const SettingsPage = () => {
     fetchEmployees();
   }, [isAdmin]);
   
-  const handleSaveProfile = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: "Profile updated",
-      description: "Your profile has been updated successfully.",
-    });
+  const handleSaveProfile = async (data: ProfileUpdateFormValues) => {
+    setIsSaving(true);
+    try {
+      // Update profile in Supabase
+      const { success, error } = await updateProfile({ full_name: data.name });
+      
+      if (!success) {
+        throw new Error(error || "Failed to update profile");
+      }
+      
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been updated successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update profile",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
   
-  const handleSaveNotifications = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast({
-      title: "Notification settings updated",
-      description: "Your notification settings have been updated successfully.",
-    });
+  const handleChangePassword = async (data: PasswordUpdateFormValues) => {
+    setIsChangingPassword(true);
+    try {
+      // First verify current password
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || "",
+        password: data.currentPassword,
+      });
+      
+      if (signInError || !signInData.user) {
+        throw new Error("Current password is incorrect");
+      }
+      
+      // Update password
+      const { success, error } = await updatePassword(data.newPassword);
+      
+      if (!success) {
+        throw new Error(error || "Failed to update password");
+      }
+      
+      toast({
+        title: "Password updated",
+        description: "Your password has been updated successfully.",
+      });
+      
+      // Reset form
+      passwordForm.reset();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update password",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
   
   const onCreateEmployeeSubmit = async (data: CreateEmployeeFormValues) => {
     if (!isAdmin) return;
     
     try {
-      // Create user in Supabase Auth with fixed parameters
+      // Create user in Supabase Auth
       const { data: authData, error: signupError } = await supabase.auth.admin.createUser({
         email: data.email,
         password: data.password,
@@ -180,7 +274,7 @@ const SettingsPage = () => {
         });
         
         // Reset form
-        form.reset();
+        createEmployeeForm.reset();
         
         // Refresh employees list
         fetchEmployees();
@@ -282,17 +376,46 @@ const SettingsPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSaveProfile} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Name</Label>
-                    <Input id="name" defaultValue={user?.user_metadata?.name || ""} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" defaultValue={user?.email || ""} />
-                  </div>
-                  <Button type="submit">Save Changes</Button>
-                </form>
+                <Form {...profileForm}>
+                  <form onSubmit={profileForm.handleSubmit(handleSaveProfile)} className="space-y-4">
+                    <FormField
+                      control={profileForm.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Name</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={profileForm.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
+                            <Input type="email" {...field} disabled />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit" disabled={isSaving}>
+                      {isSaving ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Save Changes"
+                      )}
+                    </Button>
+                  </form>
+                </Form>
               </CardContent>
             </Card>
           </TabsContent>
@@ -306,7 +429,7 @@ const SettingsPage = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSaveNotifications} className="space-y-4">
+                <form className="space-y-4">
                   <div className="flex items-center justify-between space-x-2">
                     <Label htmlFor="email-notifs">Email notifications</Label>
                     <Switch id="email-notifs" defaultChecked />
@@ -319,7 +442,14 @@ const SettingsPage = () => {
                     <Label htmlFor="updates">New feature updates</Label>
                     <Switch id="updates" defaultChecked />
                   </div>
-                  <Button type="submit">Save Preferences</Button>
+                  <Button onClick={() => {
+                    toast({
+                      title: "Notification settings updated",
+                      description: "Your notification settings have been updated successfully.",
+                    });
+                  }}>
+                    Save Preferences
+                  </Button>
                 </form>
               </CardContent>
             </Card>
@@ -335,10 +465,10 @@ const SettingsPage = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onCreateEmployeeSubmit)} className="space-y-4">
+                  <Form {...createEmployeeForm}>
+                    <form onSubmit={createEmployeeForm.handleSubmit(onCreateEmployeeSubmit)} className="space-y-4">
                       <FormField
-                        control={form.control}
+                        control={createEmployeeForm.control}
                         name="email"
                         render={({ field }) => (
                           <FormItem>
@@ -356,7 +486,7 @@ const SettingsPage = () => {
                       />
                       
                       <FormField
-                        control={form.control}
+                        control={createEmployeeForm.control}
                         name="password"
                         render={({ field }) => (
                           <FormItem>
@@ -374,7 +504,7 @@ const SettingsPage = () => {
                       />
                       
                       <FormField
-                        control={form.control}
+                        control={createEmployeeForm.control}
                         name="confirmPassword"
                         render={({ field }) => (
                           <FormItem>
@@ -481,32 +611,63 @@ const SettingsPage = () => {
               <CardHeader>
                 <CardTitle>Security</CardTitle>
                 <CardDescription>
-                  Update your security preferences
+                  Update your password
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="current-password">Current Password</Label>
-                    <Input id="current-password" type="password" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-password">New Password</Label>
-                    <Input id="new-password" type="password" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="confirm-password">Confirm New Password</Label>
-                    <Input id="confirm-password" type="password" />
-                  </div>
-                  <Button onClick={() => {
-                    toast({
-                      title: "Password updated",
-                      description: "Your password has been updated successfully.",
-                    });
-                  }}>
-                    Update Password
-                  </Button>
-                </div>
+                <Form {...passwordForm}>
+                  <form onSubmit={passwordForm.handleSubmit(handleChangePassword)} className="space-y-4">
+                    <FormField
+                      control={passwordForm.control}
+                      name="currentPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Current Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="newPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>New Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={passwordForm.control}
+                      name="confirmPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormControl>
+                            <Input type="password" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit" disabled={isChangingPassword}>
+                      {isChangingPassword ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Updating...
+                        </>
+                      ) : (
+                        "Update Password"
+                      )}
+                    </Button>
+                  </form>
+                </Form>
               </CardContent>
             </Card>
           </TabsContent>

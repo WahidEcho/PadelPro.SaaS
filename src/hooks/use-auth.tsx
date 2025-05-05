@@ -12,6 +12,8 @@ type AuthContextType = {
   isAdmin: boolean;
   isEmployee: boolean;
   signOut: () => Promise<void>;
+  updateProfile: (data: { full_name?: string }) => Promise<{ success: boolean; error: string | null }>;
+  updatePassword: (password: string) => Promise<{ success: boolean; error: string | null }>;
 };
 
 // Create the context
@@ -22,6 +24,8 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isEmployee: false,
   signOut: async () => {},
+  updateProfile: async () => ({ success: false, error: 'Not implemented' }),
+  updatePassword: async () => ({ success: false, error: 'Not implemented' }),
 });
 
 // Provider component
@@ -114,6 +118,69 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await supabase.auth.signOut();
   };
 
+  // Update user profile function
+  const updateProfile = async (data: { full_name?: string }) => {
+    try {
+      if (!user) return { success: false, error: 'User not authenticated' };
+
+      // Update user metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          full_name: data.full_name
+        }
+      });
+
+      if (updateError) throw updateError;
+
+      // Check if we need to update/create a profile record
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (existingProfile) {
+        // Update existing profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ full_name: data.full_name })
+          .eq('user_id', user.id);
+
+        if (profileError) throw profileError;
+      } else {
+        // Create new profile
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([{ user_id: user.id, full_name: data.full_name }]);
+
+        if (profileError) throw profileError;
+      }
+
+      return { success: true, error: null };
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      return { success: false, error: error.message || 'Failed to update profile' };
+    }
+  };
+
+  // Update password function
+  const updatePassword = async (password: string) => {
+    try {
+      if (!user) return { success: false, error: 'User not authenticated' };
+
+      const { error } = await supabase.auth.updateUser({
+        password: password
+      });
+
+      if (error) throw error;
+
+      return { success: true, error: null };
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      return { success: false, error: error.message || 'Failed to update password' };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -123,6 +190,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAdmin: userIsAdmin,
         isEmployee: userIsEmployee,
         signOut,
+        updateProfile,
+        updatePassword,
       }}
     >
       {children}
