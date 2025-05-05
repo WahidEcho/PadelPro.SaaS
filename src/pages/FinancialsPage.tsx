@@ -1,9 +1,9 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -39,17 +39,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { 
-  mockExpenses, 
-  mockTransactions,
-  getTodayRevenue,
-  getTodayExpenses,
-  getTotalRevenue,
-  getTotalExpenses,
-  getNetProfit 
-} from "@/lib/mock-data";
 import { DollarSign, TrendingUp, TrendingDown, CreditCard } from "lucide-react";
-import { Expense, Transaction } from "@/types";
+import { useExpensesData } from "@/hooks/use-expenses-data";
+import { useTransactionsData } from "@/hooks/use-transactions-data";
 
 const expenseFormSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters" }),
@@ -61,11 +53,54 @@ type ExpenseFormValues = z.infer<typeof expenseFormSchema>;
 
 const FinancialsPage = () => {
   const [activeTab, setActiveTab] = useState("overview");
-  const [expenses, setExpenses] = useState<Expense[]>(mockExpenses);
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
+  
+  // Use our custom hooks for Supabase data
+  const { expenses, isLoading: expensesLoading, createExpense } = useExpensesData();
+  const { transactions, isLoading: transactionsLoading } = useTransactionsData();
+  
+  // Calculate financial stats
+  const [stats, setStats] = useState({
+    todayRevenue: 0,
+    todayExpenses: 0,
+    totalRevenue: 0,
+    totalExpenses: 0,
+    netProfit: 0
+  });
+  
+  useEffect(() => {
+    // Calculate stats from actual data
+    if (!transactionsLoading && !expensesLoading) {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Calculate revenue stats
+      const todayRevenue = transactions
+        .filter(t => t.date === today)
+        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      
+      const totalRevenue = transactions
+        .reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      
+      // Calculate expense stats
+      const todayExpenses = expenses
+        .filter(e => e.date === today)
+        .reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0);
+      
+      const totalExpenses = expenses
+        .reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0);
+      
+      // Set stats
+      setStats({
+        todayRevenue,
+        todayExpenses,
+        totalRevenue,
+        totalExpenses,
+        netProfit: totalRevenue - totalExpenses
+      });
+    }
+  }, [transactions, expenses, transactionsLoading, expensesLoading]);
   
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseFormSchema),
@@ -83,20 +118,20 @@ const FinancialsPage = () => {
     }
   }, [isDialogOpen, form]);
 
-  const onSubmit = (data: ExpenseFormValues) => {
-    const newExpense: Expense = {
-      id: (expenses.length + 1).toString(),
+  const onSubmit = async (data: ExpenseFormValues) => {
+    const result = await createExpense({
       title: data.title,
       amount: data.amount,
       date: data.date,
-      created_at: new Date().toISOString(),
-    };
-    setExpenses([...expenses, newExpense]);
-    toast({
-      title: "Expense added",
-      description: `${data.title} has been added successfully.`,
     });
-    setIsDialogOpen(false);
+    
+    if (result.success) {
+      toast({
+        title: "Expense added",
+        description: `${data.title} has been added successfully.`,
+      });
+      setIsDialogOpen(false);
+    }
   };
 
   // Filter expenses based on search term
@@ -133,32 +168,32 @@ const FinancialsPage = () => {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title="Today's Revenue"
-                value={getTodayRevenue()}
+                value={stats.todayRevenue.toFixed(2)}
                 icon={DollarSign}
                 description="Total revenue for today"
                 positive={true}
               />
               <StatCard
                 title="Today's Expenses"
-                value={getTodayExpenses()}
+                value={stats.todayExpenses.toFixed(2)}
                 icon={TrendingDown}
                 description="Total expenses for today"
                 negative={true}
               />
               <StatCard
                 title="Total Revenue"
-                value={getTotalRevenue()}
+                value={stats.totalRevenue.toFixed(2)}
                 icon={TrendingUp}
-                description="Since Jan 1, 2025"
+                description="All-time revenue"
                 positive={true}
               />
               <StatCard
                 title="Net Profit"
-                value={getNetProfit()}
+                value={stats.netProfit.toFixed(2)}
                 icon={CreditCard}
                 description="Total revenue minus expenses"
-                positive={getNetProfit() > 0}
-                negative={getNetProfit() < 0}
+                positive={stats.netProfit > 0}
+                negative={stats.netProfit < 0}
               />
             </div>
             
@@ -168,26 +203,35 @@ const FinancialsPage = () => {
                   <CardTitle>Recent Transactions</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {transactions.slice(0, 5).map(transaction => (
-                      <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-md">
-                        <div>
-                          <div className="font-medium">Reservation #{transaction.reservation_id}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {new Date(transaction.date).toLocaleDateString()}
+                  {transactionsLoading ? (
+                    <div className="text-center py-4">Loading transactions...</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {transactions.slice(0, 5).map(transaction => (
+                        <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-md">
+                          <div>
+                            <div className="font-medium">
+                              {transaction.reservation_id ? `Reservation #${transaction.reservation_id.substring(0, 8)}` : 'Direct Payment'}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(transaction.date).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-medium text-green-600">
+                              ${parseFloat(transaction.amount.toString()).toFixed(2)}
+                            </div>
+                            <div className="text-xs text-muted-foreground capitalize">
+                              {transaction.payment_method}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-medium text-green-600">
-                            ${transaction.amount}
-                          </div>
-                          <div className="text-xs text-muted-foreground capitalize">
-                            {transaction.payment_method}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                      {transactions.length === 0 && (
+                        <div className="text-center py-4">No transactions found</div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
               
@@ -196,23 +240,30 @@ const FinancialsPage = () => {
                   <CardTitle>Recent Expenses</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {expenses.slice(0, 5).map(expense => (
-                      <div key={expense.id} className="flex items-center justify-between p-3 border rounded-md">
-                        <div>
-                          <div className="font-medium">{expense.title}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {new Date(expense.date).toLocaleDateString()}
+                  {expensesLoading ? (
+                    <div className="text-center py-4">Loading expenses...</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {expenses.slice(0, 5).map(expense => (
+                        <div key={expense.id} className="flex items-center justify-between p-3 border rounded-md">
+                          <div>
+                            <div className="font-medium">{expense.title}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {new Date(expense.date).toLocaleDateString()}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-medium text-red-500">
+                              -${parseFloat(expense.amount.toString()).toFixed(2)}
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-medium text-red-500">
-                            -${expense.amount}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                      {expenses.length === 0 && (
+                        <div className="text-center py-4">No expenses found</div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -241,15 +292,25 @@ const FinancialsPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredTransactions.length > 0 ? (
+                  {transactionsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        Loading transactions...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredTransactions.length > 0 ? (
                     filteredTransactions.map(transaction => (
                       <TableRow key={transaction.id}>
-                        <TableCell className="font-medium">{transaction.id}</TableCell>
-                        <TableCell>#{transaction.reservation_id}</TableCell>
+                        <TableCell className="font-medium">{transaction.id.substring(0, 8)}</TableCell>
+                        <TableCell>
+                          {transaction.reservation_id 
+                            ? `#${transaction.reservation_id.substring(0, 8)}` 
+                            : 'Direct Payment'}
+                        </TableCell>
                         <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
                         <TableCell className="capitalize">{transaction.payment_method}</TableCell>
                         <TableCell className="text-right font-medium text-green-600">
-                          ${transaction.amount}
+                          ${parseFloat(transaction.amount.toString()).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))
@@ -348,13 +409,19 @@ const FinancialsPage = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredExpenses.length > 0 ? (
+                  {expensesLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8">
+                        Loading expenses...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredExpenses.length > 0 ? (
                     filteredExpenses.map(expense => (
                       <TableRow key={expense.id}>
                         <TableCell className="font-medium">{expense.title}</TableCell>
                         <TableCell>{new Date(expense.date).toLocaleDateString()}</TableCell>
                         <TableCell className="text-right font-medium text-red-500">
-                          -${expense.amount}
+                          -${parseFloat(expense.amount.toString()).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))
