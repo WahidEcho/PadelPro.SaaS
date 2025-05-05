@@ -845,11 +845,40 @@ const ReservationsPage = () => {
             <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
             <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
               if (!deleteReservationId) return;
-              await supabase.from('reservations').delete().eq('id', deleteReservationId);
+              const { error: txError } = await supabase
+                .from('transactions')
+                .delete()
+                .eq('reservation_id', deleteReservationId);
+
+              if (txError) {
+                toast({
+                  title: "Error",
+                  description: txError.message || "Failed to delete related transactions",
+                  variant: "destructive",
+                });
+                return;
+              }
+
+              const { error } = await supabase
+                .from('reservations')
+                .delete()
+                .eq('id', deleteReservationId);
+
+              if (error) {
+                toast({
+                  title: "Error",
+                  description: error.message || "Failed to delete reservation",
+                  variant: "destructive",
+                });
+                return;
+              }
+
               setReservations(reservations.filter(r => r.id !== deleteReservationId));
               setDeleteDialogOpen(false);
               setDeleteReservationId(null);
-            }}>Delete</AlertDialogAction>
+            }}>
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
