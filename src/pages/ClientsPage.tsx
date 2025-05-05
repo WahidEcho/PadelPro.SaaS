@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, Plus, Edit, Trash2 } from "lucide-react";
+import { Search, Plus, Edit, Trash2, Loader2 } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -31,8 +31,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { mockClients } from "@/lib/mock-data";
-import { Client } from "@/types";
+import { useClientsData } from "@/hooks/use-clients-data";
+import { Client } from "@/types/supabase";
 
 const clientFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
@@ -42,7 +42,7 @@ const clientFormSchema = z.object({
 type ClientFormValues = z.infer<typeof clientFormSchema>;
 
 const ClientsPage = () => {
-  const [clients, setClients] = useState<Client[]>(mockClients);
+  const { clients, isLoading, createClient, updateClient, deleteClient } = useClientsData();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -69,50 +69,52 @@ const ClientsPage = () => {
     if (editingClient) {
       form.reset({
         name: editingClient.name,
-        phone: editingClient.phone,
+        phone: editingClient.phone || "",
       });
     }
   }, [editingClient, form]);
 
-  const onSubmit = (data: ClientFormValues) => {
+  const onSubmit = async (data: ClientFormValues) => {
     if (editingClient) {
       // Update client
-      setClients(
-        clients.map((client) =>
-          client.id === editingClient.id
-            ? { ...client, name: data.name, phone: data.phone }
-            : client
-        )
-      );
-      toast({
-        title: "Client updated",
-        description: `${data.name} has been updated successfully.`,
-      });
-    } else {
-      // Add new client
-      const newClient: Client = {
-        id: (clients.length + 1).toString(),
+      const result = await updateClient(editingClient.id, {
         name: data.name,
         phone: data.phone,
-        client_id: `CLI${(clients.length + 1).toString().padStart(3, "0")}`,
-        created_at: new Date().toISOString(),
-      };
-      setClients([...clients, newClient]);
-      toast({
-        title: "Client added",
-        description: `${data.name} has been added successfully.`,
       });
+      
+      if (result.success) {
+        toast({
+          title: "Client updated",
+          description: `${data.name} has been updated successfully.`,
+        });
+      }
+    } else {
+      // Add new client
+      const result = await createClient({
+        name: data.name,
+        phone: data.phone,
+      });
+      
+      if (result.success) {
+        toast({
+          title: "Client added",
+          description: `${data.name} has been added successfully.`,
+        });
+      }
     }
     setIsDialogOpen(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this client?")) {
-      setClients(clients.filter((client) => client.id !== id));
-      toast({
-        title: "Client deleted",
-        description: "Client has been deleted successfully.",
-      });
+      const result = await deleteClient(id);
+      
+      if (result.success) {
+        toast({
+          title: "Client deleted",
+          description: "Client has been deleted successfully.",
+        });
+      }
     }
   };
 
@@ -123,7 +125,7 @@ const ClientsPage = () => {
 
   const filteredClients = clients.filter((client) =>
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.phone.includes(searchTerm) ||
+    (client.phone && client.phone.includes(searchTerm)) ||
     client.client_id.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -209,12 +211,20 @@ const ClientsPage = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredClients.length > 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <div className="flex justify-center">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : filteredClients.length > 0 ? (
                 filteredClients.map((client) => (
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">{client.client_id}</TableCell>
                     <TableCell>{client.name}</TableCell>
-                    <TableCell>{client.phone}</TableCell>
+                    <TableCell>{client.phone || '-'}</TableCell>
                     <TableCell>
                       {new Date(client.created_at).toLocaleDateString()}
                     </TableCell>

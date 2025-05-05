@@ -2,47 +2,27 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Expense, ExpenseWithCategory } from "@/types/supabase";
+import { Expense } from "@/types/supabase";
 
 export function useExpensesData() {
   const { toast } = useToast();
-  const [expenses, setExpenses] = useState<ExpenseWithCategory[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch all expenses with their categories
+  // Fetch all expenses
   const fetchExpenses = async () => {
     setIsLoading(true);
     try {
-      // Fetch expense categories
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('expense_categories')
-        .select('*')
-        .order('name');
-        
-      if (categoriesError) throw categoriesError;
-      
-      // Fetch expenses with their category information
-      const { data: expensesData, error: expensesError } = await supabase
+      const { data, error } = await supabase
         .from('expenses')
-        .select(`
-          *,
-          expense_categories(*)
-        `)
+        .select('*, expense_categories(name)')
         .order('date', { ascending: false });
         
-      if (expensesError) throw expensesError;
+      if (error) throw error;
       
-      // Format expenses with category names
-      const formattedExpenses = expensesData.map((expense: any) => ({
-        ...expense,
-        category_name: expense.expense_categories?.name || 'Uncategorized'
-      }));
-      
-      setExpenses(formattedExpenses);
-      setCategories(categoriesData || []);
+      setExpenses(data || []);
     } catch (error) {
-      console.error('Error fetching expenses data:', error);
+      console.error('Error fetching expenses:', error);
       toast({
         title: "Error",
         description: "Failed to fetch expenses data",
@@ -56,9 +36,20 @@ export function useExpensesData() {
   // Create a new expense
   const createExpense = async (expenseData: Partial<Expense>) => {
     try {
+      // Make sure required fields are present
+      if (!expenseData.title || !expenseData.amount || !expenseData.date) {
+        throw new Error("Title, amount and date are required");
+      }
+      
       const { data, error } = await supabase
         .from('expenses')
-        .insert([expenseData])
+        .insert({
+          title: expenseData.title,
+          amount: expenseData.amount,
+          date: expenseData.date,
+          notes: expenseData.notes || null,
+          category_id: expenseData.category_id || null
+        })
         .select();
         
       if (error) throw error;
@@ -129,38 +120,6 @@ export function useExpensesData() {
     }
   };
 
-  // Create a new expense category
-  const createCategory = async (name: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('expense_categories')
-        .insert([{ name }])
-        .select();
-        
-      if (error) throw error;
-      
-      // Refresh categories
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('expense_categories')
-        .select('*')
-        .order('name');
-        
-      if (categoriesError) throw categoriesError;
-      
-      setCategories(categoriesData || []);
-      
-      return { success: true, data };
-    } catch (error) {
-      console.error('Error creating category:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create expense category",
-        variant: "destructive",
-      });
-      return { success: false, error };
-    }
-  };
-
   // Load expenses on first render
   useEffect(() => {
     fetchExpenses();
@@ -168,12 +127,10 @@ export function useExpensesData() {
 
   return {
     expenses,
-    categories,
     isLoading,
     fetchExpenses,
     createExpense,
     updateExpense,
-    deleteExpense,
-    createCategory
+    deleteExpense
   };
 }

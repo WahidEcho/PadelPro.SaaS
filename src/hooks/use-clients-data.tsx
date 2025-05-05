@@ -42,9 +42,18 @@ export function useClientsData() {
         clientData.client_id = `CLI${Math.floor(Math.random() * 900) + 100}`;
       }
       
+      // Make sure required fields are present
+      if (!clientData.name) {
+        throw new Error("Client name is required");
+      }
+      
       const { data, error } = await supabase
         .from('clients')
-        .insert([clientData])
+        .insert({
+          client_id: clientData.client_id,
+          name: clientData.name,
+          phone: clientData.phone || null
+        })
         .select();
         
       if (error) throw error;
