@@ -54,6 +54,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
+import { DateRange } from "react-day-picker";
 
 const ReservationsPage = () => {
   const [reservations, setReservations] = useState<ReservationWithDetails[]>([]);
@@ -75,6 +76,7 @@ const ReservationsPage = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteReservationId, setDeleteReservationId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   
   const { toast } = useToast();
 
@@ -184,6 +186,19 @@ const ReservationsPage = () => {
           res.client_name?.toLowerCase().includes(lowerSearchTerm) ||
           res.court_name?.toLowerCase().includes(lowerSearchTerm)
         );
+      }
+      return true;
+    })
+    .filter((res) => {
+      // Date range filter
+      if (dateRange?.from && dateRange?.to) {
+        const resDate = new Date(res.date);
+        // Set time to 0:0:0 for comparison
+        const from = new Date(dateRange.from);
+        from.setHours(0,0,0,0);
+        const to = new Date(dateRange.to);
+        to.setHours(23,59,59,999);
+        return resDate >= from && resDate <= to;
       }
       return true;
     })
@@ -540,7 +555,7 @@ const ReservationsPage = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                 <div className="relative w-full md:w-80">
                   <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -550,6 +565,31 @@ const ReservationsPage = () => {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-[220px] justify-start text-left font-normal">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dateRange?.from
+                        ? dateRange.to
+                          ? `${format(dateRange.from, "MMM d, yyyy")} - ${format(dateRange.to, "MMM d, yyyy")}`
+                          : format(dateRange.from, "MMM d, yyyy")
+                        : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto p-0">
+                    <Calendar
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={2}
+                    />
+                    {dateRange?.from || dateRange?.to ? (
+                      <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={() => setDateRange(undefined)}>
+                        Clear
+                      </Button>
+                    ) : null}
+                  </PopoverContent>
+                </Popover>
                 <Tabs 
                   value={selectedTab} 
                   onValueChange={setSelectedTab}
@@ -803,31 +843,62 @@ const ReservationsPage = () => {
             </Button>
             <Button onClick={async () => {
               if (!editReservation) return;
-              // Update reservation in Supabase
-              await supabase.from('reservations').update({
-                client_id: selectedClient,
-                court_id: selectedCourt,
-                date: format(date!, 'yyyy-MM-dd'),
-                time_start: timeStart,
-                time_end: timeEnd,
-                amount: amount,
-                payment_method: paymentMethod
-              }).eq('id', editReservation.id);
-              setReservations(reservations.map(r => r.id === editReservation.id ? {
-                ...r,
-                client_id: selectedClient,
-                court_id: selectedCourt,
-                date: format(date!, 'yyyy-MM-dd'),
-                time_start: timeStart,
-                time_end: timeEnd,
-                amount: amount,
-                payment_method: paymentMethod,
-                client_name: clients.find(c => c.id === selectedClient)?.name || r.client_name,
-                court_name: courts.find(c => c.id === selectedCourt)?.name || r.court_name
-              } : r));
-              setEditDialogOpen(false);
-              setEditReservation(null);
-            }}>
+              setIsSubmitting(true);
+              try {
+                // Update reservation in Supabase
+                const { error: reservationError } = await supabase.from('reservations').update({
+                  client_id: selectedClient,
+                  court_id: selectedCourt,
+                  date: format(date!, 'yyyy-MM-dd'),
+                  time_start: timeStart,
+                  time_end: timeEnd,
+                  amount: amount,
+                  payment_method: paymentMethod
+                }).eq('id', editReservation.id);
+
+                if (reservationError) throw reservationError;
+
+                // Update related transaction in Supabase
+                const { error: transactionError } = await supabase.from('transactions').update({
+                  amount: amount,
+                  payment_method: paymentMethod,
+                  date: format(date!, 'yyyy-MM-dd')
+                }).eq('reservation_id', editReservation.id);
+
+                if (transactionError) throw transactionError;
+
+                // Refetch reservations from Supabase
+                const { data: reservationsData, error: reservationsError } = await supabase
+                  .from('reservations')
+                  .select(`*, clients!inner (name), courts!inner (name)`)
+                  .order('date', { ascending: false });
+                if (reservationsError) throw reservationsError;
+                const reservationsWithDetails = reservationsData.map((res: any) => ({
+                  ...res,
+                  client_name: res.clients?.name || 'Unknown',
+                  court_name: res.courts?.name || 'Unknown'
+                }));
+                setReservations(reservationsWithDetails);
+
+                toast({
+                  title: "Reservation updated",
+                  description: `Reservation has been updated successfully.`,
+                });
+                setEditDialogOpen(false);
+                setEditReservation(null);
+              } catch (error: any) {
+                toast({
+                  title: "Error",
+                  description: error.message || "Failed to update reservation",
+                  variant: "destructive",
+                });
+              } finally {
+                setIsSubmitting(false);
+              }
+            }} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
               Save Changes
             </Button>
           </DialogFooter>

@@ -43,6 +43,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { DateRange } from "react-day-picker";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 const CourtsPage = () => {
   const [courts, setCourts] = useState<CourtsWithGroup[]>([]);
@@ -69,6 +76,7 @@ const CourtsPage = () => {
   const [groupManagerEditName, setGroupManagerEditName] = useState('');
   const [groupManagerEditId, setGroupManagerEditId] = useState<string | null>(null);
   const [groupManagerCourts, setGroupManagerCourts] = useState<{ [groupId: string]: string[] }>({});
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -266,6 +274,19 @@ const CourtsPage = () => {
     setCourtDialogOpen(true);
   };
 
+  // Filter reservations by date range before rendering court cards
+  const filteredReservations = reservations.filter((res) => {
+    if (dateRange?.from && dateRange?.to) {
+      const resDate = new Date(res.date);
+      const from = new Date(dateRange.from);
+      from.setHours(0,0,0,0);
+      const to = new Date(dateRange.to);
+      to.setHours(23,59,59,999);
+      return resDate >= from && resDate <= to;
+    }
+    return true;
+  });
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -280,59 +301,59 @@ const CourtsPage = () => {
             <Button variant="secondary" onClick={() => setGroupManagerOpen(true)}>
               Group Manager
             </Button>
-            <Dialog open={courtDialogOpen} onOpenChange={setCourtDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Court
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{editingCourt ? 'Edit Court' : 'Add New Court'}</DialogTitle>
-                  <DialogDescription>
-                    {editingCourt ? 'Update the court details.' : 'Create a new court for your facility.'}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="court-name">Court Name</Label>
-                    <Input 
-                      id="court-name" 
-                      value={courtName}
-                      onChange={(e) => setCourtName(e.target.value)} 
-                      placeholder="e.g., Court 1"
-                    />
-                  </div>
-                  
-                  <div className="grid gap-2">
-                    <Label htmlFor="court-group">Court Group</Label>
-                    <Select value={courtGroupId} onValueChange={setCourtGroupId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a group" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="no-group">No Group</SelectItem>
-                        {courtGroups.map(group => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+          <Dialog open={courtDialogOpen} onOpenChange={setCourtDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Court
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingCourt ? 'Edit Court' : 'Add New Court'}</DialogTitle>
+                <DialogDescription>
+                  {editingCourt ? 'Update the court details.' : 'Create a new court for your facility.'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="court-name">Court Name</Label>
+                  <Input 
+                    id="court-name" 
+                    value={courtName}
+                    onChange={(e) => setCourtName(e.target.value)} 
+                    placeholder="e.g., Court 1"
+                  />
                 </div>
-                <DialogFooter>
+                
+                <div className="grid gap-2">
+                  <Label htmlFor="court-group">Court Group</Label>
+                  <Select value={courtGroupId} onValueChange={setCourtGroupId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="no-group">No Group</SelectItem>
+                      {courtGroups.map(group => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
                   <Button variant="outline" onClick={() => {
                     setCourtDialogOpen(false);
                     setEditingCourt(null);
                     setCourtName("");
                     setCourtGroupId("no-group");
                   }}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddCourt} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Cancel
+                </Button>
+                <Button onClick={handleAddCourt} disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     {editingCourt ? 'Update Court' : 'Create Court'}
                   </Button>
                 </DialogFooter>
@@ -409,11 +430,40 @@ const CourtsPage = () => {
                   >
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Add Group
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           </div>
+        </div>
+
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <div className="flex-1"></div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-[220px] justify-start text-left font-normal">
+                <Loader2 className="mr-2 h-4 w-4" />
+                {dateRange?.from
+                  ? dateRange.to
+                    ? `${dateRange.from.toLocaleDateString()} - ${dateRange.to.toLocaleDateString()}`
+                    : dateRange.from.toLocaleDateString()
+                  : "Pick a date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <Calendar
+                mode="range"
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={2}
+              />
+              {dateRange?.from || dateRange?.to ? (
+                <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={() => setDateRange(undefined)}>
+                  Clear
+                </Button>
+              ) : null}
+            </PopoverContent>
+          </Popover>
         </div>
 
         <Tabs defaultValue="courts">
@@ -442,7 +492,7 @@ const CourtsPage = () => {
                           <Button size="icon" variant="ghost" onClick={() => { setGroupToDelete(group); setGroupDeleteDialogOpen(true); }}>
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
-                        </div>
+                  </div>
                         <CardHeader>
                           <CardTitle>{group.name}</CardTitle>
                         </CardHeader>
@@ -452,16 +502,16 @@ const CourtsPage = () => {
                           ) : (
                             <div className="space-y-4">
                               {courtsInGroup.map((court) => {
-                                const last5Reservations = reservations
+                                const last5Reservations = filteredReservations
                                   .filter(r => r.court_id === court.id)
                                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                                   .slice(0, 5);
                                 return (
                                   <Card key={court.id} className="bg-muted/50">
-                                    <CardHeader>
+                      <CardHeader>
                                       <CardTitle className="text-lg">{court.name}</CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
+                      </CardHeader>
+                      <CardContent>
                                       {last5Reservations.length === 0 ? (
                                         <div className="text-muted-foreground text-sm">No reservations found.</div>
                                       ) : (
@@ -484,20 +534,20 @@ const CourtsPage = () => {
                                           </tbody>
                                         </table>
                                       )}
-                                    </CardContent>
+                      </CardContent>
                                     <CardFooter className="flex justify-end gap-2 border-t pt-2 mt-2">
                                       <Button size="icon" variant="ghost" onClick={() => handleEditCourt(court)}>
                                         <Pencil className="h-4 w-4" />
-                                      </Button>
+                        </Button>
                                       <Button size="icon" variant="ghost" onClick={() => { setCourtToDelete(court.id); setDeleteDialogOpen(true); }}>
                                         <Trash2 className="h-4 w-4 text-red-500" />
-                                      </Button>
-                                    </CardFooter>
-                                  </Card>
+                            </Button>
+                      </CardFooter>
+                    </Card>
                                 );
                               })}
                             </div>
-                          )}
+                )}
                         </CardContent>
                       </Card>
                     );
@@ -515,7 +565,7 @@ const CourtsPage = () => {
             ) : (
               <CourtsScheduleView 
                 courts={courts} 
-                reservations={reservations}
+                reservations={filteredReservations}
               />
             )}
           </TabsContent>

@@ -71,6 +71,7 @@ const FinancialsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [incomeCourtFilter, setIncomeCourtFilter] = useState("");
   const [incomeClientFilter, setIncomeClientFilter] = useState("");
+  const [incomeGroupFilter, setIncomeGroupFilter] = useState("");
   const { toast } = useToast();
   
   // Use our custom hooks for Supabase data
@@ -98,6 +99,8 @@ const FinancialsPage = () => {
   const [editExpenseDialogOpen, setEditExpenseDialogOpen] = useState(false);
   const [deleteExpenseId, setDeleteExpenseId] = useState<string | null>(null);
   const [deleteExpenseDialogOpen, setDeleteExpenseDialogOpen] = useState(false);
+  const [expenseNameFilter, setExpenseNameFilter] = useState("");
+  const [expenseCategoryFilter, setExpenseCategoryFilter] = useState("");
 
   // Filter transactions and expenses by date range
   const isInRange = (dateStr: string) => {
@@ -109,9 +112,18 @@ const FinancialsPage = () => {
     (transaction) => isInRange(transaction.date)
   );
   const filteredExpenses = expenses.filter(
-    (expense) => isInRange(expense.date)
-  );
-
+    (expense) => {
+      const nameMatch = expense.title.toLowerCase().includes(expenseNameFilter.toLowerCase());
+      const categoryMatch = (expense.category_name || "-").toLowerCase().includes(expenseCategoryFilter.toLowerCase());
+      const searchMatch =
+        searchTerm === "" ||
+        expense.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (expense.category_name || "-").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (expense.notes || "").toLowerCase().includes(searchTerm.toLowerCase());
+      return nameMatch && categoryMatch && searchMatch;
+    }
+  ).filter((expense) => isInRange(expense.date));
+  
   useEffect(() => {
     // Calculate stats from filtered data
     if (!transactionsLoading && !expensesLoading) {
@@ -163,12 +175,16 @@ const FinancialsPage = () => {
   }, [isDialogOpen, form]);
 
   const onSubmit = async (data: ExpenseFormValues) => {
+    // Ensure category and notes are included and handled
+    const categoryToSave = data.category_id && data.category_id !== '' ? data.category_id : null;
+    const notesToSave = data.notes !== undefined ? data.notes : '';
     const result = await createExpense({
       title: data.title,
       amount: data.amount,
       date: data.date,
+      category_id: categoryToSave,
+      notes: notesToSave,
     });
-    
     if (result.success) {
       toast({
         title: "Expense added",
@@ -229,11 +245,14 @@ const FinancialsPage = () => {
   const filteredIncomeTransactions = filteredTransactions.filter(transaction => {
     const clientName = transaction.reservations?.clients?.name?.toLowerCase() || "";
     const courtName = transaction.reservations?.courts?.name?.toLowerCase() || "";
+    const groupName = transaction.reservations?.courts && 'court_groups' in transaction.reservations.courts && transaction.reservations.courts.court_groups?.name ? transaction.reservations.courts.court_groups.name.toLowerCase() : "";
     const courtFilter = incomeCourtFilter.toLowerCase();
     const clientFilter = incomeClientFilter.toLowerCase();
+    const groupFilter = incomeGroupFilter.toLowerCase();
     return (
       (!courtFilter || courtName.includes(courtFilter)) &&
-      (!clientFilter || clientName.includes(clientFilter))
+      (!clientFilter || clientName.includes(clientFilter)) &&
+      (!groupFilter || groupName.includes(groupFilter))
     );
   });
 
@@ -378,6 +397,12 @@ const FinancialsPage = () => {
                 onChange={(e) => setIncomeClientFilter(e.target.value)}
                 className="max-w-xs"
               />
+              <Input
+                placeholder="Filter by group name..."
+                value={incomeGroupFilter}
+                onChange={(e) => setIncomeGroupFilter(e.target.value)}
+                className="max-w-xs"
+              />
             </div>
             
             <div className="rounded-md border">
@@ -425,16 +450,26 @@ const FinancialsPage = () => {
           </TabsContent>
           
           <TabsContent value="expenses" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-2">
-                <Search className="w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search expenses..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-sm"
-                />
-              </div>
+            <div className="flex items-center space-x-2 mb-4">
+              <Search className="w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Filter by expense name..."
+                value={expenseNameFilter}
+                onChange={(e) => setExpenseNameFilter(e.target.value)}
+                className="max-w-xs"
+              />
+              <Input
+                placeholder="Filter by category..."
+                value={expenseCategoryFilter}
+                onChange={(e) => setExpenseCategoryFilter(e.target.value)}
+                className="max-w-xs"
+              />
+              <Input
+                placeholder="Search expenses..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm"
+              />
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setIsCategoryManagerOpen(true)}>
                   Manage Categories
@@ -491,46 +526,46 @@ const FinancialsPage = () => {
                             </FormItem>
                           )}
                         />
-                        <FormField
-                          control={form.control}
-                          name="category_id"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Category</FormLabel>
-                              <div className="flex gap-2">
+                          <FormField
+                            control={form.control}
+                            name="category_id"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Category</FormLabel>
+                                <div className="flex gap-2">
+                                  <FormControl>
+                                    <select
+                                      className="border rounded px-2 py-1"
+                                      value={field.value || ""}
+                                      onChange={field.onChange}
+                                    >
+                                      <option value="">No Category</option>
+                                      {categories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                      ))}
+                                    </select>
+                                  </FormControl>
+                                  <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryDialogOpen(true)}>
+                                    + Add Category
+                                  </Button>
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="notes"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Notes</FormLabel>
                                 <FormControl>
-                                  <select
-                                    className="border rounded px-2 py-1"
-                                    value={field.value || ""}
-                                    onChange={field.onChange}
-                                  >
-                                    <option value="">No Category</option>
-                                    {categories.map((cat) => (
-                                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                    ))}
-                                  </select>
+                                  <Input placeholder="Optional notes..." {...field} />
                                 </FormControl>
-                                <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryDialogOpen(true)}>
-                                  + Add Category
-                                </Button>
-                              </div>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="notes"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Notes</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Optional notes..." {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
                         <Button type="submit" className="w-full">
                           Add Expense
                         </Button>

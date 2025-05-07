@@ -20,7 +20,12 @@ export function useExpensesData() {
         
       if (error) throw error;
       
-      setExpenses(data || []);
+      // Map joined category name to category_name for each expense
+      const mappedExpenses = (data || []).map((exp: any) => ({
+        ...exp,
+        category_name: exp.expense_categories?.name || null
+      }));
+      setExpenses(mappedExpenses);
     } catch (error) {
       console.error('Error fetching expenses:', error);
       toast({
