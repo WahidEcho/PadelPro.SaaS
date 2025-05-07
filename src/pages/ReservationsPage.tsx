@@ -225,7 +225,7 @@ const ReservationsPage = () => {
       });
       return;
     }
-
+    
     setIsSubmitting(true);
     
     try {
@@ -488,7 +488,7 @@ const ReservationsPage = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="amount">Amount ($)</Label>
+                    <Label htmlFor="amount">Amount (&#163;)</Label>
                     <Input
                       id="amount"
                       type="number"
@@ -599,7 +599,7 @@ const ReservationsPage = () => {
                           <th className="p-4 text-left font-medium">Court</th>
                           <th className="p-4 text-left font-medium">Date</th>
                           <th className="p-4 text-left font-medium">Time</th>
-                          <th className="p-4 text-left font-medium">Amount</th>
+                          <th className="p-4 text-left font-medium">Amount (&#163;)</th>
                           <th className="p-4 text-left font-medium">Payment</th>
                           <th className="p-4 text-left font-medium">Status</th>
                           <th className="p-4 text-left font-medium">Actions</th>
@@ -630,7 +630,7 @@ const ReservationsPage = () => {
                                 <td className="p-4">
                                   {res.time_start} - {res.time_end}
                                 </td>
-                                <td className="p-4">${res.amount}</td>
+                                <td className="p-4">&#163;{res.amount}</td>
                                 <td className="p-4 capitalize">{res.payment_method}</td>
                                 <td className="p-4">
                                   <span className={`${statusColor} text-xs font-medium px-2 py-1 rounded-full`}>
@@ -791,7 +791,7 @@ const ReservationsPage = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="edit-amount">Amount ($)</Label>
+                  <Label htmlFor="edit-amount">Amount (&#163;)</Label>
                   <Input
                     id="edit-amount"
                     type="number"

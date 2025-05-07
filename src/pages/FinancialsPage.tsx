@@ -333,7 +333,7 @@ const FinancialsPage = () => {
                           </div>
                           <div className="text-right">
                             <div className="font-medium text-green-600">
-                              ${Math.round(parseFloat(transaction.amount.toString()))}
+                              &#163;{Math.round(parseFloat(transaction.amount.toString()))}
                             </div>
                             <div className="text-xs text-muted-foreground capitalize">
                               {transaction.payment_method}
@@ -368,7 +368,7 @@ const FinancialsPage = () => {
                           </div>
                           <div className="text-right">
                             <div className="font-medium text-red-500">
-                              -${Math.round(parseFloat(expense.amount.toString()))}
+                              -&#163;{Math.round(parseFloat(expense.amount.toString()))}
                             </div>
                           </div>
                         </div>
@@ -415,7 +415,7 @@ const FinancialsPage = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Method</TableHead>
                     <TableHead>Group</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Amount (&#163;)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -434,7 +434,7 @@ const FinancialsPage = () => {
                         <TableCell className="capitalize">{transaction.payment_method}</TableCell>
                         <TableCell>{transaction.reservations?.courts && 'court_groups' in transaction.reservations.courts && transaction.reservations.courts.court_groups?.name ? transaction.reservations.courts.court_groups.name : '-'}</TableCell>
                         <TableCell className="text-right font-medium text-green-600">
-                          ${Math.round(parseFloat(transaction.amount.toString()))}
+                          &#163;{Math.round(parseFloat(transaction.amount.toString()))}
                         </TableCell>
                       </TableRow>
                     ))
@@ -506,7 +506,7 @@ const FinancialsPage = () => {
                           name="amount"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Amount ($)</FormLabel>
+                              <FormLabel>Amount (&#163;)</FormLabel>
                               <FormControl>
                                 <Input type="number" step="0.01" {...field} />
                               </FormControl>
@@ -585,7 +585,7 @@ const FinancialsPage = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Notes</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Amount (&#163;)</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -604,7 +604,7 @@ const FinancialsPage = () => {
                         <TableCell>{expense.category_name || "-"}</TableCell>
                         <TableCell>{expense.notes || "-"}</TableCell>
                         <TableCell className="text-right font-medium text-red-500">
-                          -${Math.round(parseFloat(expense.amount.toString()))}
+                          -&#163;{Math.round(parseFloat(expense.amount.toString()))}
                         </TableCell>
                         <TableCell>
                           <Button size="icon" variant="ghost" onClick={() => {
@@ -637,7 +637,7 @@ const FinancialsPage = () => {
           </TabsContent>
           
           <TabsContent value="summary" className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
               <StatCard
                 title="Total Sales"
                 value={Math.round(totalSales).toString()}
@@ -723,7 +723,7 @@ const FinancialsPage = () => {
                       <th className="text-left p-2">Name</th>
                       <th className="text-left p-2">Category</th>
                       <th className="text-left p-2">Notes</th>
-                      <th className="text-right p-2">Amount</th>
+                      <th className="text-right p-2">Amount (&#163;)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -732,7 +732,9 @@ const FinancialsPage = () => {
                         <td className="p-2">{expense.title}</td>
                         <td className="p-2">{expense.category_name || '-'}</td>
                         <td className="p-2">{expense.notes || '-'}</td>
-                        <td className="p-2 text-right font-semibold text-red-500">-{Math.round(expense.amount)}</td>
+                        <td className="p-2 text-right font-semibold text-red-500">
+                          -&#163;{Math.round(expense.amount)}
+                        </td>
                       </tr>
                     ))}
                     {filteredExpenses.length === 0 && (
@@ -870,7 +872,7 @@ const FinancialsPage = () => {
                   name="amount"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Amount ($)</FormLabel>
+                      <FormLabel>Amount (&#163;)</FormLabel>
                       <FormControl>
                         <Input type="number" step="0.01" {...field} />
                       </FormControl>

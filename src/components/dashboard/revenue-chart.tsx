@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
@@ -108,7 +107,7 @@ export function RevenueChart() {
               <XAxis dataKey="displayDate" />
               <YAxis />
               <Tooltip 
-                formatter={(value: number) => `$${value.toFixed(2)}`}
+                formatter={(value: number) => `£${Math.round(value)}`}
                 labelFormatter={(label) => `Date: ${label}`}
               />
               <Bar dataKey="revenue" fill="#22c55e" name="Revenue" />

@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RevenueByGroup } from "@/types/supabase";
@@ -28,7 +27,7 @@ export function RevenueByCourtGroup({ isLoading, revenueByGroup }: RevenueByCour
               {revenueByGroup.map((item, index) => (
                 <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-md">
                   <span className="font-medium">{item.group_name}</span>
-                  <span className="text-xl font-bold">${parseFloat(item.total_revenue.toString()).toFixed(2)}</span>
+                  <span className="text-xl font-bold">£{Math.round(parseFloat(item.total_revenue.toString()))}</span>
                 </div>
               ))}
             </div>
