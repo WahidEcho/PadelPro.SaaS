@@ -200,6 +200,7 @@ const FinancialsPage = () => {
   const totalCard = filteredTransactions.filter(t => t.payment_method === 'card').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
   const totalWallet = filteredTransactions.filter(t => t.payment_method === 'wallet').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0);
+  const cashMinusExpenses = totalCash - totalExpenses;
 
   // Fetch and group sales per court and group for the summary tab
   useEffect(() => {
@@ -672,6 +673,14 @@ const FinancialsPage = () => {
                 description="Sum of all expenses"
                 negative={true}
               />
+              <StatCard
+                title="Cash - Expenses"
+                value={Math.round(cashMinusExpenses).toString()}
+                icon={DollarSign}
+                description="Total cash minus expenses"
+                positive={cashMinusExpenses >= 0}
+                negative={cashMinusExpenses < 0}
+              />
             </div>
             {/* Court group sales */}
             <h3 className="text-2xl font-bold mt-8 mb-2">Courts Sale Summary</h3>
@@ -713,6 +722,7 @@ const FinancialsPage = () => {
                     <tr>
                       <th className="text-left p-2">Name</th>
                       <th className="text-left p-2">Category</th>
+                      <th className="text-left p-2">Notes</th>
                       <th className="text-right p-2">Amount</th>
                     </tr>
                   </thead>
@@ -721,12 +731,13 @@ const FinancialsPage = () => {
                       <tr key={expense.id} className="border-t">
                         <td className="p-2">{expense.title}</td>
                         <td className="p-2">{expense.category_name || '-'}</td>
+                        <td className="p-2">{expense.notes || '-'}</td>
                         <td className="p-2 text-right font-semibold text-red-500">-{Math.round(expense.amount)}</td>
                       </tr>
                     ))}
                     {filteredExpenses.length === 0 && (
                       <tr>
-                        <td colSpan={3} className="text-center p-2 text-muted-foreground">No expenses found</td>
+                        <td colSpan={4} className="text-center p-2 text-muted-foreground">No expenses found</td>
                       </tr>
                     )}
                   </tbody>
