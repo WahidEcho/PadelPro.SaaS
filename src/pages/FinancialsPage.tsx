@@ -702,6 +702,37 @@ const FinancialsPage = () => {
                 </Card>
               ))}
             </div>
+            {/* New Expenses Card at the end */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Expenses</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr>
+                      <th className="text-left p-2">Name</th>
+                      <th className="text-left p-2">Category</th>
+                      <th className="text-right p-2">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredExpenses.slice(0, 7).map(expense => (
+                      <tr key={expense.id} className="border-t">
+                        <td className="p-2">{expense.title}</td>
+                        <td className="p-2">{expense.category_name || '-'}</td>
+                        <td className="p-2 text-right font-semibold text-red-500">-{Math.round(expense.amount)}</td>
+                      </tr>
+                    ))}
+                    {filteredExpenses.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="text-center p-2 text-muted-foreground">No expenses found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

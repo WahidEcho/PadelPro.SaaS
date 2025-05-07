@@ -226,19 +226,6 @@ const ReservationsPage = () => {
       return;
     }
 
-    // Check if reservation date is in the past
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    if (date && isBefore(date, today)) {
-      toast({
-        title: "Error",
-        description: "Cannot make reservations for past dates",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     setIsSubmitting(true);
     
     try {
@@ -416,12 +403,6 @@ const ReservationsPage = () => {
                         selected={date}
                         onSelect={setDate}
                         initialFocus
-                        disabled={(date) => {
-                          // Disable dates in the past
-                          const today = new Date();
-                          today.setHours(0, 0, 0, 0);
-                          return isBefore(date, today);
-                        }}
                         className={cn("p-3 pointer-events-auto")}
                       />
                     </PopoverContent>
