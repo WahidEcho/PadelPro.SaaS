@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -140,17 +139,17 @@ const LoginPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-lg shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 dark:bg-background transition-colors duration-300">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white dark:bg-gray-800 rounded-lg shadow-lg transition-colors duration-300">
         <div className="text-center">
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="rounded-md bg-padel-primary p-2">
-              <div className="h-6 w-6 text-white font-semibold flex items-center justify-center">P</div>
+              <div className="h-6 w-6 text-white font-semibold flex items-center justify-center transition-colors duration-300">P</div>
             </div>
-            <span className="font-bold text-2xl">PadelPro Manager</span>
+            <span className="font-bold text-2xl dark:text-white transition-colors duration-300">PadelPro Manager</span>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900">Welcome</h2>
-          <p className="mt-2 text-sm text-gray-600">Sign in to access your dashboard</p>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors duration-300">Welcome</h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 transition-colors duration-300">Sign in to access your dashboard</p>
         </div>
         
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "login" | "signup")}>

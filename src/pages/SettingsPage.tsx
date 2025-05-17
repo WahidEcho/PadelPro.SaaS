@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Input } from "@/components/ui/input";
@@ -45,6 +44,7 @@ type UserWithRole = {
 
 // Schema for creating a new employee
 const createEmployeeSchema = z.object({
+  name: z.string().min(1, { message: "Name is required" }),
   email: z.string().email({ message: "Please enter a valid email address" }),
   password: z.string().min(6, { message: "Password must be at least 6 characters" }),
   confirmPassword: z.string().min(6, { message: "Password must be at least 6 characters" }),
@@ -85,6 +85,7 @@ const SettingsPage = () => {
   const createEmployeeForm = useForm<CreateEmployeeFormValues>({
     resolver: zodResolver(createEmployeeSchema),
     defaultValues: {
+      name: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -242,19 +243,17 @@ const SettingsPage = () => {
   
   const onCreateEmployeeSubmit = async (data: CreateEmployeeFormValues) => {
     if (!isAdmin) return;
-    
     try {
       // Create user in Supabase Auth
       const { data: authData, error: signupError } = await supabase.auth.admin.createUser({
         email: data.email,
         password: data.password,
-        email_confirm: true
+        email_confirm: true,
+        user_metadata: { full_name: data.name },
       });
-      
       if (signupError) {
         throw signupError;
       }
-      
       if (authData && authData.user) {
         // Assign employee role
         const { error: roleError } = await supabase
@@ -263,19 +262,15 @@ const SettingsPage = () => {
             user_id: authData.user.id,
             role: 'employee'
           }]);
-        
         if (roleError) {
           throw roleError;
         }
-        
         toast({
           title: "Employee created",
           description: `Employee ${data.email} has been created successfully.`,
         });
-        
         // Reset form
         createEmployeeForm.reset();
-        
         // Refresh employees list
         fetchEmployees();
       }
@@ -467,6 +462,23 @@ const SettingsPage = () => {
                 <CardContent>
                   <Form {...createEmployeeForm}>
                     <form onSubmit={createEmployeeForm.handleSubmit(onCreateEmployeeSubmit)} className="space-y-4">
+                      <FormField
+                        control={createEmployeeForm.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Employee Name</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="Full name" 
+                                type="text" 
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                       <FormField
                         control={createEmployeeForm.control}
                         name="email"

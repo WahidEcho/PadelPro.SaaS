@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,7 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Suspense, lazy } from "react";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { LanguageProvider, useLanguage } from "@/contexts/language-context";
 import { Loader2 } from "lucide-react";
+import { ThemeProvider } from "@/contexts/theme-context";
 
 // Lazy load pages for better performance
 const Index = lazy(() => import("./pages/Index"));
@@ -70,74 +71,98 @@ const ProtectedRoute = ({
   return <Suspense fallback={<LoadingScreen />}>{children}</Suspense>;
 };
 
+// Add a wrapper for employee route restriction
+function EmployeeRouteGuard({ children }) {
+  const { isEmployee, isAdmin } = useAuth();
+  const location = useLocation();
+  if (isEmployee && !isAdmin && location.pathname !== "/reservations") {
+    return <Navigate to="/reservations" replace />;
+  }
+  return children;
+}
+
+// RTL Wrapper for the app
+function RTLWrapper({ children }: { children: React.ReactNode }) {
+  const { language } = useLanguage();
+  return <div dir={language === "ar" ? "rtl" : "ltr"}>{children}</div>;
+}
+
 const App = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* Public routes */}
-              <Route 
-                path="/login" 
-                element={
-                  <Suspense fallback={<LoadingScreen />}>
-                    <LoginPage />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="/admin-setup" 
-                element={
-                  <Suspense fallback={<LoadingScreen />}>
-                    <AdminSetup />
-                  </Suspense>
-                } 
-              />
-              
-              {/* Protected routes - accessible by both admin and employee */}
-              <Route path="/" element={
-                <ProtectedRoute allowedRoles={['admin', 'employee']}>
-                  <Index />
-                </ProtectedRoute>
-              } />
-              <Route path="/courts" element={
-                <ProtectedRoute allowedRoles={['admin', 'employee']}>
-                  <CourtsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/reservations" element={
-                <ProtectedRoute allowedRoles={['admin', 'employee']}>
-                  <ReservationsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/clients" element={
-                <ProtectedRoute allowedRoles={['admin', 'employee']}>
-                  <ClientsPage />
-                </ProtectedRoute>
-              } />
-              
-              {/* Admin-only routes */}
-              <Route path="/financials" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <FinancialsPage />
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <SettingsPage />
-                </ProtectedRoute>
-              } />
-              
-              {/* Catch-all route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <LanguageProvider>
+            <RTLWrapper>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+                  <EmployeeRouteGuard>
+              <Routes>
+                {/* Public routes */}
+                <Route 
+                  path="/login" 
+                  element={
+                    <Suspense fallback={<LoadingScreen />}>
+                      <LoginPage />
+                    </Suspense>
+                  } 
+                />
+                <Route 
+                  path="/admin-setup" 
+                  element={
+                    <Suspense fallback={<LoadingScreen />}>
+                      <AdminSetup />
+                    </Suspense>
+                  } 
+                />
+                
+                {/* Protected routes - accessible by both admin and employee */}
+                <Route path="/" element={
+                  <ProtectedRoute allowedRoles={['admin', 'employee']}>
+                    <Index />
+                  </ProtectedRoute>
+                } />
+                <Route path="/courts" element={
+                  <ProtectedRoute allowedRoles={['admin', 'employee']}>
+                    <CourtsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/reservations" element={
+                  <ProtectedRoute allowedRoles={['admin', 'employee']}>
+                    <ReservationsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/clients" element={
+                  <ProtectedRoute allowedRoles={['admin', 'employee']}>
+                    <ClientsPage />
+                  </ProtectedRoute>
+                } />
+                
+                {/* Admin-only routes */}
+                <Route path="/financials" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <FinancialsPage />
+                  </ProtectedRoute>
+                } />
+                <Route path="/settings" element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                } />
+                
+                {/* Catch-all route */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+                  </EmployeeRouteGuard>
+            </BrowserRouter>
+          </TooltipProvider>
+            </RTLWrapper>
+          </LanguageProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 };
 

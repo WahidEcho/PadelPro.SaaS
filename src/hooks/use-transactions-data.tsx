@@ -118,9 +118,59 @@ export function useTransactionsData() {
     }
   };
 
-  // Load transactions on first render
+  // Load transactions on first render and subscribe to real-time updates
   useEffect(() => {
     fetchTransactions();
+
+    // Subscribe to real-time changes in the transactions table
+    const channel = supabase.channel('transactions-realtime')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'transactions',
+      }, async (payload) => {
+        // Fetch the new transaction with its relations
+        const { data: newTransaction, error } = await supabase
+          .from('transactions')
+          .select('*, reservations!inner(id, clients(name), courts!inner(name, court_groups(name)))')
+          .eq('id', payload.new.id)
+          .single();
+        
+        if (!error && newTransaction) {
+          setTransactions(prev => [newTransaction, ...prev]);
+        }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'transactions',
+      }, async (payload) => {
+        // Fetch the updated transaction with its relations
+        const { data: updatedTransaction, error } = await supabase
+          .from('transactions')
+          .select('*, reservations!inner(id, clients(name), courts!inner(name, court_groups(name)))')
+          .eq('id', payload.new.id)
+          .single();
+        
+        if (!error && updatedTransaction) {
+          setTransactions(prev => 
+            prev.map(t => t.id === updatedTransaction.id ? updatedTransaction : t)
+          );
+        }
+      })
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'transactions',
+      }, (payload) => {
+        setTransactions(prev => prev.filter(t => t.id !== payload.old.id));
+      })
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return {

@@ -4,10 +4,12 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGri
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, addDays, eachDayOfInterval } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLanguage } from "@/contexts/language-context";
 
 export function RevenueChart() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const fetchRevenueData = async () => {
@@ -90,8 +92,8 @@ export function RevenueChart() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Revenue & Expenses</CardTitle>
-        <CardDescription>Daily revenue and expenses for the last 7 days</CardDescription>
+        <CardTitle>{t("revenue_expenses")}</CardTitle>
+        <CardDescription>{t("daily_revenue_expenses")}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -110,8 +112,8 @@ export function RevenueChart() {
                 formatter={(value: number) => `£${Math.round(value)}`}
                 labelFormatter={(label) => `Date: ${label}`}
               />
-              <Bar dataKey="revenue" fill="#22c55e" name="Revenue" />
-              <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
+              <Bar dataKey="revenue" fill="#22c55e" name={t("revenue")}/>
+              <Bar dataKey="expenses" fill="#ef4444" name={t("expenses")}/>
             </BarChart>
           </ResponsiveContainer>
         )}

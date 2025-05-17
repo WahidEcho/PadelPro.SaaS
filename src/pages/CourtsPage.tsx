@@ -50,6 +50,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { useLanguage } from "@/contexts/language-context";
 
 const CourtsPage = () => {
   const [courts, setCourts] = useState<CourtsWithGroup[]>([]);
@@ -77,6 +78,7 @@ const CourtsPage = () => {
   const [groupManagerEditId, setGroupManagerEditId] = useState<string | null>(null);
   const [groupManagerCourts, setGroupManagerCourts] = useState<{ [groupId: string]: string[] }>({});
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -110,7 +112,7 @@ const CourtsPage = () => {
         // Format courts data with group names
         const courtsWithGroupNames = courtsData.map((court: any) => ({
           ...court,
-          group_name: court.court_groups?.name || 'No Group'
+          group_name: court.court_groups?.name || t("no_group")
         }));
 
         setCourts(courtsWithGroupNames);
@@ -140,8 +142,8 @@ const CourtsPage = () => {
         // Format reservations data with client and court names
         const reservationsWithDetails = reservationsData.map((res: any) => ({
           ...res,
-          client_name: res.clients?.name || 'Unknown Client',
-          court_name: res.courts?.name || 'Unknown Court'
+          client_name: res.clients?.name || t("unknown_client"),
+          court_name: res.courts?.name || t("unknown_court")
         }));
 
         setReservations(reservationsWithDetails);
@@ -149,8 +151,8 @@ const CourtsPage = () => {
       } catch (error) {
         console.error('Error fetching court data:', error);
         toast({
-          title: "Error",
-          description: "Failed to fetch court data",
+          title: t("error"),
+          description: t("failed_to_fetch_court_data"),
           variant: "destructive",
         });
       } finally {
@@ -164,8 +166,8 @@ const CourtsPage = () => {
   const handleAddCourt = async () => {
     if (!courtName) {
       toast({
-        title: "Error",
-        description: "Court name is required",
+        title: t("error"),
+        description: t("court_name_required"),
         variant: "destructive",
       });
       return;
@@ -189,8 +191,8 @@ const CourtsPage = () => {
         if (error) throw error;
         
         toast({
-          title: "Success",
-          description: "Court updated successfully"
+          title: t("success"),
+          description: t("court_updated_successfully")
         });
       } else {
         // Create new court
@@ -201,8 +203,8 @@ const CourtsPage = () => {
         if (error) throw error;
         
         toast({
-          title: "Success",
-          description: "Court added successfully"
+          title: t("success"),
+          description: t("court_added_successfully")
         });
       }
 
@@ -220,7 +222,7 @@ const CourtsPage = () => {
 
       const courtsWithGroupNames = data.map((court: any) => ({
         ...court,
-        group_name: court.court_groups?.name || 'No Group'
+        group_name: court.court_groups?.name || t("no_group")
       }));
 
       setCourts(courtsWithGroupNames);
@@ -233,8 +235,8 @@ const CourtsPage = () => {
     } catch (error: any) {
       console.error('Error saving court:', error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to save court",
+        title: t("error"),
+        description: error.message || t("failed_to_save_court"),
         variant: "destructive",
       });
     } finally {
@@ -254,14 +256,14 @@ const CourtsPage = () => {
       setCourts(courts.filter(court => court.id !== courtId));
       
       toast({
-        title: "Success",
-        description: "Court deleted successfully"
+        title: t("success"),
+        description: t("court_deleted_successfully")
       });
     } catch (error: any) {
       console.error('Error deleting court:', error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to delete court",
+        title: t("error"),
+        description: error.message || t("failed_to_delete_court"),
         variant: "destructive",
       });
     }
@@ -292,48 +294,48 @@ const CourtsPage = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Courts</h2>
+            <h2 className="text-3xl font-bold tracking-tight">{t("courts")}</h2>
             <p className="text-muted-foreground">
-              Manage your padel courts and view schedules
+              {t("manage_padel_courts")}
             </p>
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setGroupManagerOpen(true)}>
-              Group Manager
+              {t("group_manager")}
             </Button>
           <Dialog open={courtDialogOpen} onOpenChange={setCourtDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Court
+                {t("add_court")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingCourt ? 'Edit Court' : 'Add New Court'}</DialogTitle>
+                <DialogTitle>{editingCourt ? t("edit_court") : t("add_new_court")}</DialogTitle>
                 <DialogDescription>
-                  {editingCourt ? 'Update the court details.' : 'Create a new court for your facility.'}
+                  {editingCourt ? t("update_court_details") : t("create_new_court_facility")}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="court-name">Court Name</Label>
+                  <Label htmlFor="court-name">{t("court_name")}</Label>
                   <Input 
                     id="court-name" 
                     value={courtName}
                     onChange={(e) => setCourtName(e.target.value)} 
-                    placeholder="e.g., Court 1"
+                    placeholder={t("court_name_placeholder")}
                   />
                 </div>
                 
                 <div className="grid gap-2">
-                  <Label htmlFor="court-group">Court Group</Label>
+                  <Label htmlFor="court-group">{t("court_group")}</Label>
                   <Select value={courtGroupId} onValueChange={setCourtGroupId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select a group" />
+                      <SelectValue placeholder={t("select_group")}/>
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="no-group">No Group</SelectItem>
+                        <SelectItem value="no-group">{t("no_group")}</SelectItem>
                       {courtGroups.map(group => (
                         <SelectItem key={group.id} value={group.id}>
                           {group.name}
@@ -350,11 +352,11 @@ const CourtsPage = () => {
                     setCourtName("");
                     setCourtGroupId("no-group");
                   }}>
-                  Cancel
+                  {t("cancel")}
                 </Button>
                 <Button onClick={handleAddCourt} disabled={isSubmitting}>
                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {editingCourt ? 'Update Court' : 'Create Court'}
+                    {editingCourt ? t("update_court") : t("create_court")}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -364,37 +366,37 @@ const CourtsPage = () => {
               <DialogTrigger asChild>
                 <Button variant="outline" className="ml-2">
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Group
+                  {t("add_group")}
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Add New Group</DialogTitle>
+                  <DialogTitle>{t("add_new_group")}</DialogTitle>
                   <DialogDescription>
-                    Create a new court group.
+                    {t("create_new_court_group")}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="group-name">Group Name</Label>
+                    <Label htmlFor="group-name">{t("group_name")}</Label>
                     <Input
                       id="group-name"
                       value={newGroupName}
                       onChange={(e) => setNewGroupName(e.target.value)}
-                      placeholder="e.g., Levels"
+                      placeholder={t("group_name_placeholder")}
                     />
                   </div>
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setGroupDialogOpen(false)}>
-                    Cancel
+                    {t("cancel")}
                   </Button>
                   <Button
                     onClick={async () => {
                       if (!newGroupName) {
                         toast({
-                          title: "Error",
-                          description: "Group name is required",
+                          title: t("error"),
+                          description: t("group_name_required"),
                           variant: "destructive",
                         });
                         return;
@@ -406,8 +408,8 @@ const CourtsPage = () => {
                           .insert([{ name: newGroupName }]);
                         if (error) throw error;
                         toast({
-                          title: "Success",
-                          description: "Group added successfully"
+                          title: t("success"),
+                          description: t("group_added_successfully")
                         });
                         // Refresh groups
                         const { data: groupsData, error: groupsError } = await supabase
@@ -418,8 +420,8 @@ const CourtsPage = () => {
                         setGroupDialogOpen(false);
                       } catch (error: any) {
                         toast({
-                          title: "Error",
-                          description: error.message || "Failed to add group",
+                          title: t("error"),
+                          description: error.message || t("failed_to_add_group"),
                           variant: "destructive",
                         });
                       } finally {
@@ -429,7 +431,7 @@ const CourtsPage = () => {
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Add Group
+                    {t("add_group")}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -447,7 +449,7 @@ const CourtsPage = () => {
                   ? dateRange.to
                     ? `${dateRange.from.toLocaleDateString()} - ${dateRange.to.toLocaleDateString()}`
                     : dateRange.from.toLocaleDateString()
-                  : "Pick a date"}
+                  : t("pick_a_date")}
               </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-auto p-0">
@@ -459,7 +461,7 @@ const CourtsPage = () => {
               />
               {dateRange?.from || dateRange?.to ? (
                 <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={() => setDateRange(undefined)}>
-                  Clear
+                  {t("clear")}
                 </Button>
               ) : null}
             </PopoverContent>
@@ -468,8 +470,8 @@ const CourtsPage = () => {
 
         <Tabs defaultValue="courts">
           <TabsList>
-            <TabsTrigger value="courts">Courts</TabsTrigger>
-            <TabsTrigger value="schedule">Schedule</TabsTrigger>
+            <TabsTrigger value="courts">{t("courts")}</TabsTrigger>
+            <TabsTrigger value="schedule">{t("schedule")}</TabsTrigger>
           </TabsList>
           
           <TabsContent value="courts" className="space-y-6">
@@ -498,7 +500,7 @@ const CourtsPage = () => {
                         </CardHeader>
                         <CardContent>
                           {courtsInGroup.length === 0 ? (
-                            <div className="text-muted-foreground">No courts in this group.</div>
+                            <div className="text-muted-foreground">{t("no_courts_in_group")}</div>
                           ) : (
                             <div className="space-y-4">
                               {courtsInGroup.map((court) => {
@@ -507,20 +509,19 @@ const CourtsPage = () => {
                                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                                   .slice(0, 5);
                                 return (
-                                  <Card key={court.id} className="bg-muted/50">
+                                  <Card key={court.id} className="bg-muted/50 dark:bg-gray-800">
                       <CardHeader>
                                       <CardTitle className="text-lg">{court.name}</CardTitle>
                       </CardHeader>
                       <CardContent>
                                       {last5Reservations.length === 0 ? (
-                                        <div className="text-muted-foreground text-sm">No reservations found.</div>
+                                        <div className="text-muted-foreground text-sm">{t("no_reservations_found")}</div>
                                       ) : (
                                         <table className="w-full text-sm">
                                           <thead>
                                             <tr>
-                                              <th className="text-left p-1">Name</th>
-                                              <th className="text-right p-1">Amount</th>
-                                              <th className="text-right p-1">Method</th>
+                                              <th className="text-left p-1">{t("name")}</th>
+                                              <th className="text-right p-1">{t("amount")}</th>
                                             </tr>
                                           </thead>
                                           <tbody>
@@ -528,7 +529,6 @@ const CourtsPage = () => {
                                               <tr key={res.id}>
                                                 <td className="p-1">{res.client_name}</td>
                                                 <td className="p-1 text-right">{res.amount}</td>
-                                                <td className="p-1 text-right capitalize">{res.payment_method || '-'}</td>
                                               </tr>
                                             ))}
                                           </tbody>
@@ -575,14 +575,14 @@ const CourtsPage = () => {
       <Dialog open={groupEditDialogOpen} onOpenChange={setGroupEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Group</DialogTitle>
+            <DialogTitle>{t("edit_group")}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <Label htmlFor="edit-group-name">Group Name</Label>
+            <Label htmlFor="edit-group-name">{t("group_name")}</Label>
             <Input id="edit-group-name" value={editGroupName} onChange={e => setEditGroupName(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGroupEditDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setGroupEditDialogOpen(false)}>{t("cancel")}</Button>
             <Button onClick={async () => {
               if (!editGroupName.trim() || !groupToEdit) return;
               try {
@@ -593,7 +593,7 @@ const CourtsPage = () => {
               } catch (error) {
                 // handle error
               }
-            }}>Save</Button>
+            }}>{t("save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -601,11 +601,11 @@ const CourtsPage = () => {
       <AlertDialog open={groupDeleteDialogOpen} onOpenChange={setGroupDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the group and cannot be undone. All courts in this group will also be affected.</AlertDialogDescription>
+            <AlertDialogTitle>{t("are_you_sure")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("delete_group_warning")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setGroupDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setGroupDeleteDialogOpen(false)}>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
               if (!groupToDelete) return;
               try {
@@ -616,7 +616,7 @@ const CourtsPage = () => {
               } catch (error) {
                 // handle error
               }
-            }}>Delete</AlertDialogAction>
+            }}>{t("delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -624,12 +624,12 @@ const CourtsPage = () => {
       <Dialog open={groupManagerOpen} onOpenChange={setGroupManagerOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Group Manager</DialogTitle>
-            <DialogDescription>Manage all court groups and assign courts.</DialogDescription>
+            <DialogTitle>{t("group_manager")}</DialogTitle>
+            <DialogDescription>{t("manage_all_court_groups")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-6 max-h-[60vh] overflow-y-auto">
             {courtGroups.length === 0 ? (
-              <div className="text-muted-foreground">No groups found.</div>
+              <div className="text-muted-foreground">{t("no_groups_found")}</div>
             ) : (
               courtGroups.map(group => {
                 const assignedCourtIds = courts.filter(c => c.group_id === group.id).map(c => c.id);
@@ -652,7 +652,7 @@ const CourtsPage = () => {
                             await supabase.from('court_groups').update({ name: groupManagerEditName.trim() }).eq('id', group.id);
                             setCourtGroups(courtGroups.map(g => g.id === group.id ? { ...g, name: groupManagerEditName.trim() } : g));
                             setGroupManagerEditId(null);
-                          }}>Save</Button>
+                          }}>{t("save")}</Button>
                         ) : (
                           <Button size="icon" variant="ghost" onClick={() => { setGroupManagerEditId(group.id); setGroupManagerEditName(group.name); }}>
                             <Pencil className="h-4 w-4" />
@@ -667,7 +667,7 @@ const CourtsPage = () => {
                       </div>
                     </div>
                     <div>
-                      <Label>Assign Courts</Label>
+                      <Label>{t("assign_courts")}</Label>
                       <div className="flex flex-wrap gap-2 mt-2">
                         {courts.map(court => (
                           <div key={court.id} className="flex items-center gap-1">
@@ -695,24 +695,24 @@ const CourtsPage = () => {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGroupManagerOpen(false)}>Close</Button>
+            <Button variant="outline" onClick={() => setGroupManagerOpen(false)}>{t("close")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the court and cannot be undone. All reservations for this court will also be affected.</AlertDialogDescription>
+            <AlertDialogTitle>{t("are_you_sure")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("delete_court_warning")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>{t("cancel")}</AlertDialogCancel>
             <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
               if (!courtToDelete) return;
               await handleDeleteCourt(courtToDelete);
               setDeleteDialogOpen(false);
               setCourtToDelete(null);
-            }}>Delete</AlertDialogAction>
+            }}>{t("delete")}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

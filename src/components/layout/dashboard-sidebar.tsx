@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Calendar,
   Home,
@@ -21,58 +22,65 @@ import {
 } from "@/components/ui/sidebar";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/contexts/language-context";
 
-export function DashboardSidebar() {
+export function DashboardSidebar({ order = 1 }: { order?: number }) {
   const { isAdmin, isEmployee } = useAuth();
   const { state, toggleSidebar } = useSidebar ? useSidebar() : { state: "expanded", toggleSidebar: () => {} };
+  const { t, language } = useLanguage();
   
   // Define menu items based on user roles
   const menuItems = [
     {
-      title: "Dashboard",
+      title: t("dashboard"),
       icon: Home,
       path: "/",
-      visible: true, // Visible to all authenticated users
+      visible: isAdmin, // Only visible to admin users
     },
     {
-      title: "Courts",
+      title: t("courts"),
       icon: ClipboardList,
       path: "/courts",
-      visible: true, // Visible to all authenticated users
+      visible: isAdmin, // Only visible to admin users
     },
     {
-      title: "Reservations",
+      title: t("reservations"),
       icon: Calendar,
       path: "/reservations",
       visible: true, // Visible to all authenticated users
     },
     {
-      title: "Clients",
+      title: t("clients"),
       icon: Users,
       path: "/clients",
-      visible: true, // Visible to all authenticated users
+      visible: isAdmin, // Only visible to admin users
     },
     {
-      title: "Financials",
+      title: t("financials"),
       icon: DollarSign,
       path: "/financials",
       visible: isAdmin, // Only visible to admin users
     },
     {
-      title: "Settings",
+      title: t("settings"),
       icon: Settings,
       path: "/settings",
       visible: isAdmin, // Only visible to admin users
     },
   ];
 
-  // Filter menu items based on visibility
-  const visibleMenuItems = menuItems.filter(item => item.visible);
+  // For employees, only show Reservations
+  const visibleMenuItems = isEmployee && !isAdmin
+    ? menuItems.filter(item => item.title === "Reservations")
+    : menuItems.filter(item => item.visible);
 
   return (
-    <Sidebar>
+    <Sidebar
+      style={{ order }}
+      className={language === 'ar' ? 'fixed right-0 left-auto' : ''}
+    >
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2">
+        <div className={`flex items-center gap-2 px-2 ${language === 'ar' ? 'flex-row-reverse' : ''}`}>
           {state === "collapsed" && (
             <button
               type="button"
@@ -86,7 +94,7 @@ export function DashboardSidebar() {
           <div className="rounded-md bg-padel-primary p-1">
             <div className="h-5 w-5 text-white font-semibold flex items-center justify-center">P</div>
           </div>
-          <span className="font-bold text-lg">PadelPro Manager</span>
+          <span className="font-bold text-lg">{t("padelpro_manager")}</span>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -95,7 +103,10 @@ export function DashboardSidebar() {
             {visibleMenuItems.map((item) => (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild>
-                  <Link to={item.path} className="flex items-center gap-3">
+                  <Link
+                    to={item.path}
+                    className={`flex items-center gap-3 ${document.documentElement.dir === 'rtl' ? 'flex-row-reverse text-right' : ''}`}
+                  >
                     <item.icon className="h-5 w-5" />
                     <span>{item.title}</span>
                   </Link>

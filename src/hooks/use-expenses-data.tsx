@@ -165,10 +165,26 @@ export function useExpensesData() {
     }
   };
 
-  // Load expenses and categories on first render
+  // Load expenses and categories on first render and subscribe to real-time updates
   useEffect(() => {
     fetchExpenses();
     fetchCategories();
+
+    // Subscribe to real-time changes in the expenses table
+    const channel = supabase.channel('expenses-realtime')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'expenses',
+      }, () => {
+        fetchExpenses();
+      })
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   return {

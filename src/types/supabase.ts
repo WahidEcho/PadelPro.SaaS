@@ -7,7 +7,13 @@ export type { Database } from "@/integrations/supabase/types";
 export type CourtGroup = Database['public']['Tables']['court_groups']['Row'];
 export type Court = Database['public']['Tables']['courts']['Row'];
 export type Client = Database['public']['Tables']['clients']['Row'];
-export type Reservation = Database['public']['Tables']['reservations']['Row'];
+export type Reservation = Database['public']['Tables']['reservations']['Row'] & {
+  cash?: number;
+  card?: number;
+  wallet?: number;
+  employee_name?: string;
+  created_by_role?: string;
+};
 export type ExpenseCategory = Database['public']['Tables']['expense_categories']['Row'];
 export type Expense = Database['public']['Tables']['expenses']['Row'];
 export type Transaction = Database['public']['Tables']['transactions']['Row'];
@@ -20,6 +26,8 @@ export type AppRole = Database['public']['Enums']['app_role'];
 export type ReservationWithDetails = Reservation & {
   client_name?: string;
   court_name?: string;
+  employee_name?: string;
+  created_by_role?: string;
 };
 
 export type CourtsWithGroup = Court & {

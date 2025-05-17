@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from "react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Users, Calendar, PlusCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useLanguage } from "@/contexts/language-context";
 
 export function DashboardStats() {
   const [todayReservations, setTodayReservations] = useState<number>(0);
@@ -11,6 +11,7 @@ export function DashboardStats() {
   const [courtUsage, setCourtUsage] = useState<string>("0%");
   const [newClients, setNewClients] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
+  const { t } = useLanguage();
   
   useEffect(() => {
     const fetchDashboardStats = async () => {
@@ -82,27 +83,27 @@ export function DashboardStats() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mt-6">
       <StatCard 
-        title="Today's Reservations" 
+        title={t("todays_reservations")}
         value={isLoading ? "..." : todayReservations.toString()} 
-        description="Live data from Supabase"
+        description={t("live_data")}
         icon={Calendar}
       />
       <StatCard 
-        title="Active Clients" 
+        title={t("active_clients")}
         value={isLoading ? "..." : activeClients} 
-        description="With recent reservations"
+        description={t("with_recent_reservations")}
         icon={Users}
       />
       <StatCard 
-        title="Court Usage" 
+        title={t("court_usage")}
         value={isLoading ? "..." : courtUsage} 
-        description="Today's booking rate"
+        description={t("todays_booking_rate")}
         trend="up"
       />
       <StatCard 
-        title="New Clients" 
+        title={t("new_clients")}
         value={isLoading ? "..." : newClients} 
-        description="This week"
+        description={t("this_week")}
         icon={PlusCircle}
       />
     </div>

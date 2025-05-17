@@ -21,7 +21,7 @@ const Menubar = React.forwardRef<
   <MenubarPrimitive.Root
     ref={ref}
     className={cn(
-      "flex h-10 items-center space-x-1 rounded-md border bg-background p-1",
+      "flex h-10 items-center space-x-1 rounded-md border bg-background dark:bg-gray-800 p-1",
       className
     )}
     {...props}
@@ -192,7 +192,7 @@ const MenubarSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <MenubarPrimitive.Separator
     ref={ref}
-    className={cn("-mx-1 my-1 h-px bg-muted", className)}
+    className={cn("-mx-1 my-1 h-px bg-muted dark:bg-gray-700", className)}
     {...props}
   />
 ))

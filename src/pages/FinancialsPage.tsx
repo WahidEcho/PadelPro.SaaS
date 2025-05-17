@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Tabs,
@@ -61,6 +62,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CalendarIcon, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Court, Client } from "@/types/supabase";
+import { useLanguage } from "@/contexts/language-context";
 
 const expenseFormSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters" }),
@@ -72,6 +79,28 @@ const expenseFormSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseFormSchema>;
 
+function isSameDay(dateStr: string, day: Date | null) {
+  if (!day) return false;
+  const d = new Date(dateStr);
+  return (
+    d.getFullYear() === day.getFullYear() &&
+    d.getMonth() === day.getMonth() &&
+    d.getDate() === day.getDate()
+  );
+}
+
+// Add type definition before the groupedIncomeTransactions
+type GroupedIncomeTransaction = {
+  reservationId: string;
+  client: string;
+  court: string;
+  date: string;
+  group: string;
+  cash: number;
+  card: number;
+  wallet: number;
+};
+
 const FinancialsPage = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -80,10 +109,11 @@ const FinancialsPage = () => {
   const [incomeClientFilter, setIncomeClientFilter] = useState("");
   const [incomeGroupFilter, setIncomeGroupFilter] = useState("");
   const { toast } = useToast();
+  const { t } = useLanguage();
   
   // Use our custom hooks for Supabase data
   const { expenses, isLoading: expensesLoading, createExpense, updateExpense, deleteExpense, categories, createCategory, fetchCategories } = useExpensesData();
-  const { transactions, isLoading: transactionsLoading } = useTransactionsData();
+  const { transactions, isLoading: transactionsLoading, fetchTransactions } = useTransactionsData();
   
   // Calculate financial stats
   const [stats, setStats] = useState({
@@ -113,30 +143,40 @@ const FinancialsPage = () => {
   // For single day: group court sales
   const [singleDayCourtSales, setSingleDayCourtSales] = useState<any[]>([]);
 
-  // Filter transactions and expenses by date range
+  // Update the isInRange function to handle single day
   const isInRange = (dateStr: string) => {
+    if (singleDay) {
+      return isSameDay(dateStr, singleDay);
+    }
     if (!dateRange || !dateRange.from || !dateRange.to) return true;
     const date = new Date(dateStr);
     return date >= dateRange.from && date <= dateRange.to;
   };
-  const filteredTransactions = transactions.filter(
-    (transaction) => isInRange(transaction.date)
+
+  // Memoize filtered transactions and expenses
+  const filteredTransactions = React.useMemo(() => 
+    transactions.filter((transaction) => isInRange(transaction.date)),
+    [transactions, singleDay, dateRange]
   );
-  const filteredExpenses = expenses.filter(
-    (expense) => {
-      const nameMatch = expense.title.toLowerCase().includes(expenseNameFilter.toLowerCase());
-      const categoryMatch = (expense.category_name || "-").toLowerCase().includes(expenseCategoryFilter.toLowerCase());
-      const searchMatch =
-        searchTerm === "" ||
-        expense.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (expense.category_name || "-").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (expense.notes || "").toLowerCase().includes(searchTerm.toLowerCase());
-      return nameMatch && categoryMatch && searchMatch;
-    }
-  ).filter((expense) => isInRange(expense.date));
+
+  const filteredExpenses = React.useMemo(() => 
+    expenses
+      .filter((expense) => {
+        const nameMatch = expense.title.toLowerCase().includes(expenseNameFilter.toLowerCase());
+        const categoryMatch = (expense.category_name || "-").toLowerCase().includes(expenseCategoryFilter.toLowerCase());
+        const searchMatch =
+          searchTerm === "" ||
+          expense.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (expense.category_name || "-").toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (expense.notes || "").toLowerCase().includes(searchTerm.toLowerCase());
+        return nameMatch && categoryMatch && searchMatch && isInRange(expense.date);
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [expenses, expenseNameFilter, expenseCategoryFilter, searchTerm, singleDay, dateRange]
+  );
   
+  // Update the useEffect for stats calculation
   useEffect(() => {
-    // Calculate stats from filtered data
     if (!transactionsLoading && !expensesLoading) {
       const today = new Date().toISOString().split('T')[0];
       
@@ -276,15 +316,6 @@ const FinancialsPage = () => {
   });
 
   // Filter for single day
-  function isSameDay(dateStr: string, day: Date | null) {
-    if (!day) return false;
-    const d = new Date(dateStr);
-    return (
-      d.getFullYear() === day.getFullYear() &&
-      d.getMonth() === day.getMonth() &&
-      d.getDate() === day.getDate()
-    );
-  }
   const singleDayTransactions = singleDay
     ? transactions.filter((t) => isSameDay(t.date, singleDay))
     : [];
@@ -338,14 +369,379 @@ const FinancialsPage = () => {
     fetchSingleDayCourtSales();
   }, [singleDay]);
 
+  // Update the groupedIncomeTransactions to use the type
+  const groupedIncomeTransactions = Object.values(
+    filteredIncomeTransactions.reduce((acc, transaction) => {
+      const reservationId = transaction.reservation_id || transaction.reservations?.id || transaction.id;
+      if (!acc[reservationId]) {
+        acc[reservationId] = {
+          reservationId,
+          client: transaction.reservations?.clients?.name || "N/A",
+          court: transaction.reservations?.courts?.name || "N/A",
+          date: transaction.date,
+          group: transaction.reservations?.courts && 'court_groups' in transaction.reservations.courts && transaction.reservations.courts.court_groups?.name ? transaction.reservations.courts.court_groups.name : '-',
+          cash: 0,
+          card: 0,
+          wallet: 0,
+        };
+      }
+      if (transaction.payment_method === 'cash') {
+        acc[reservationId].cash += Math.round(parseFloat(transaction.amount.toString()));
+      } else if (transaction.payment_method === 'card') {
+        acc[reservationId].card += Math.round(parseFloat(transaction.amount.toString()));
+      } else if (transaction.payment_method === 'wallet') {
+        acc[reservationId].wallet += Math.round(parseFloat(transaction.amount.toString()));
+      }
+      return acc;
+    }, {} as Record<string, GroupedIncomeTransaction>)
+  ).sort((a: GroupedIncomeTransaction, b: GroupedIncomeTransaction) => new Date(b.date).getTime() - new Date(a.date).getTime()) as GroupedIncomeTransaction[];
+
+  // Reservation dialog state for Income tab
+  const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
+  const [courts, setCourts] = useState<Court[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [reservationDate, setReservationDate] = useState<Date | undefined>(new Date());
+  const [selectedCourt, setSelectedCourt] = useState<string>("");
+  const [timeStart, setTimeStart] = useState<string>("09:00");
+  const [timeEnd, setTimeEnd] = useState<string>("10:00");
+  const [selectedClient, setSelectedClient] = useState<string>("");
+  const [cash, setCash] = useState<number>(0);
+  const [card, setCard] = useState<number>(0);
+  const [wallet, setWallet] = useState<number>(0);
+  const [isSubmittingReservation, setIsSubmittingReservation] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientSearchResults, setClientSearchResults] = useState<Client[]>([]);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [clientDropdownIndex, setClientDropdownIndex] = useState(-1);
+  const clientInputRef = useRef<HTMLInputElement>(null);
+
+  // Add new state variables for Add Client dialog
+  const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [isAddingClient, setIsAddingClient] = useState(false);
+
+  // Debounced search for clients
+  useEffect(() => {
+    if (!clientSearch) {
+      setClientSearchResults([]);
+      return;
+    }
+    const handler = setTimeout(async () => {
+      const { data } = await supabase
+        .from('clients')
+        .select('*')
+        .or(`name.ilike.%${clientSearch}%,phone.ilike.%${clientSearch}%`);
+      setClientSearchResults(data || []);
+      setShowClientDropdown(true);
+      setClientDropdownIndex(-1);
+    }, 1);
+    return () => clearTimeout(handler);
+  }, [clientSearch]);
+
+  // Keyboard navigation for dropdown
+  const handleClientInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showClientDropdown || clientSearchResults.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      setClientDropdownIndex(idx => Math.min(idx + 1, clientSearchResults.length - 1));
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setClientDropdownIndex(idx => Math.max(idx - 1, 0));
+      e.preventDefault();
+    } else if (e.key === 'Enter' && clientDropdownIndex >= 0) {
+      const client = clientSearchResults[clientDropdownIndex];
+      setSelectedClient(client.id);
+      setClientSearch(client.name);
+      setShowClientDropdown(false);
+    }
+  };
+
+  // Fetch courts and clients for reservation dialog
+  useEffect(() => {
+    async function fetchCourtsAndClients() {
+      const { data: courtsData } = await supabase.from('courts').select('*');
+      setCourts(courtsData || []);
+      const { data: clientsData } = await supabase.from('clients').select('*');
+      setClients(clientsData || []);
+    }
+    if (reservationDialogOpen) fetchCourtsAndClients();
+  }, [reservationDialogOpen]);
+
+  // Generate time slots for selection (all 24 hours in 30-minute intervals)
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = 0; hour < 24; hour++) {
+      slots.push(`${hour.toString().padStart(2, "0")}:00`);
+      slots.push(`${hour.toString().padStart(2, "0")}:30`);
+    }
+    return slots;
+  };
+  const timeSlots = generateTimeSlots();
+  const handleTimeStartChange = (value: string) => {
+    setTimeStart(value);
+    const [hours, minutes] = value.split(':').map(Number);
+    const endHours = hours + 1;
+    const formattedEndHours = endHours.toString().padStart(2, '0');
+    const formattedEndMinutes = minutes.toString().padStart(2, '0');
+    const newEndTime = `${formattedEndHours}:${formattedEndMinutes}`;
+    setTimeEnd(newEndTime);
+  };
+  // Add Reservation handler
+  const handleAddReservation = async () => {
+    if (!selectedCourt || !selectedClient || !reservationDate) {
+      toast({ title: "Error", description: "Please fill all the required fields", variant: "destructive" });
+      return;
+    }
+    setIsSubmittingReservation(true);
+    try {
+      const totalAmount = cash + card + wallet;
+      const { data: reservationData, error: reservationError } = await supabase
+        .from('reservations')
+        .insert([
+          {
+            client_id: selectedClient,
+            court_id: selectedCourt,
+            date: format(reservationDate, 'yyyy-MM-dd'),
+            time_start: timeStart,
+            time_end: timeEnd,
+            cash,
+            card,
+            wallet,
+            amount: totalAmount,
+          } as any
+        ])
+        .select();
+      if (reservationError) throw reservationError;
+      // Also create a transaction for this reservation
+      const txInserts = [];
+      if (cash > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: cash, payment_method: 'cash', date: format(reservationDate, 'yyyy-MM-dd') });
+      if (card > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: card, payment_method: 'card', date: format(reservationDate, 'yyyy-MM-dd') });
+      if (wallet > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: wallet, payment_method: 'wallet', date: format(reservationDate, 'yyyy-MM-dd') });
+      if (txInserts.length > 0) {
+        await supabase.from('transactions').insert(txInserts);
+      }
+      // Reset form
+      setSelectedCourt("");
+      setSelectedClient("");
+      setReservationDate(new Date());
+      setTimeStart("09:00");
+      setTimeEnd("10:00");
+      setCash(0);
+      setCard(0);
+      setWallet(0);
+      setReservationDialogOpen(false);
+      toast({ title: "Reservation added", description: `Reservation has been added successfully` });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to add reservation", variant: "destructive" });
+    } finally {
+      setIsSubmittingReservation(false);
+    }
+  };
+
+  // Add new state variables for edit/delete functionality
+  const [editReservationDialogOpen, setEditReservationDialogOpen] = useState(false);
+  const [deleteReservationDialogOpen, setDeleteReservationDialogOpen] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState<any>(null);
+  const [isDeletingReservation, setIsDeletingReservation] = useState(false);
+
+  // Add the delete handler function
+  const handleDeleteReservation = async () => {
+    if (!selectedReservation) return;
+    setIsDeletingReservation(true);
+    try {
+      // First, delete all related transactions
+      await supabase
+        .from('transactions')
+        .delete()
+        .eq('reservation_id', selectedReservation.reservationId);
+
+      // Then, delete the reservation
+      const { error: reservationError } = await supabase
+        .from('reservations')
+        .delete()
+        .eq('id', selectedReservation.reservationId);
+      
+      if (reservationError) throw reservationError;
+      
+      toast({
+        title: "Reservation deleted",
+        description: "The reservation has been deleted successfully.",
+      });
+      setDeleteReservationDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete reservation",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingReservation(false);
+    }
+  };
+
+  // Update the handleEditReservation function to use fetchTransactions
+  const handleEditReservation = async (data: any) => {
+    if (!selectedReservation) return;
+    try {
+      const { error: reservationError } = await supabase
+        .from('reservations')
+        .update({
+          client_id: data.client_id,
+          court_id: data.court_id,
+          date: data.date,
+          time_start: data.time_start,
+          time_end: data.time_end,
+          cash: data.cash,
+          card: data.card,
+          wallet: data.wallet,
+          amount: data.cash + data.card + data.wallet,
+        })
+        .eq('id', selectedReservation.reservationId);
+
+      if (reservationError) throw reservationError;
+
+      // Refresh the transactions data
+      await fetchTransactions();
+
+      toast({
+        title: "Reservation updated",
+        description: "The reservation has been updated successfully.",
+      });
+      setEditReservationDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update reservation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Add useEffect to pre-fill form data when a reservation is selected for editing
+  useEffect(() => {
+    if (selectedReservation && editReservationDialogOpen) {
+      // Set the date
+      setReservationDate(new Date(selectedReservation.date));
+      
+      // Set the court
+      setSelectedCourt(selectedReservation.court_id);
+      
+      // Set the client
+      setSelectedClient(selectedReservation.client_id);
+      setClientSearch(selectedReservation.client);
+      
+      // Set the payment amounts
+      setCash(selectedReservation.cash);
+      setCard(selectedReservation.card);
+      setWallet(selectedReservation.wallet);
+      
+      // Set the time slots
+      setTimeStart(selectedReservation.time_start);
+      setTimeEnd(selectedReservation.time_end);
+    }
+  }, [selectedReservation, editReservationDialogOpen]);
+
+  useEffect(() => {
+    const handleRealtimeChange = () => {
+      fetchIncomeReservations();
+    };
+
+    const transactionsChannel = supabase
+      .channel('realtime:transactions')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, handleRealtimeChange)
+      .subscribe();
+
+    const reservationsChannel = supabase
+      .channel('realtime:reservations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtimeChange)
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(transactionsChannel);
+      supabase.removeChannel(reservationsChannel);
+    };
+  }, []);
+
+  // Fetch reservations for the income table
+  const [incomeReservations, setIncomeReservations] = useState<any[]>([]);
+  const fetchIncomeReservations = async () => {
+    let query = supabase
+      .from('reservations')
+      .select(`
+        id,
+        date,
+        cash,
+        card,
+        wallet,
+        clients(name, id),
+        courts(name, id, court_groups(name))
+      `);
+    if (singleDay) {
+      query = query.eq('date', toLocalDateString(singleDay));
+    } else if (dateRange && dateRange.from && dateRange.to) {
+      query = query.gte('date', toLocalDateString(dateRange.from)).lte('date', toLocalDateString(dateRange.to));
+    }
+    const { data, error } = await query;
+    if (!error) {
+      setIncomeReservations(data || []);
+    } else {
+      setIncomeReservations([]);
+    }
+  };
+  useEffect(() => {
+    fetchIncomeReservations();
+  }, [singleDay, dateRange, incomeCourtFilter, incomeClientFilter, incomeGroupFilter]);
+
+  // Filter and map reservations for the table
+  const filteredIncomeReservations = incomeReservations.filter(res => {
+    const clientName = res.clients?.name?.toLowerCase() || "";
+    const courtName = res.courts?.name?.toLowerCase() || "";
+    const groupName = res.courts?.court_groups?.name?.toLowerCase() || "";
+    const courtFilter = incomeCourtFilter.toLowerCase();
+    const clientFilter = incomeClientFilter.toLowerCase();
+    const groupFilter = incomeGroupFilter.toLowerCase();
+    return (
+      (!courtFilter || courtName.includes(courtFilter)) &&
+      (!clientFilter || clientName.includes(clientFilter)) &&
+      (!groupFilter || groupName.includes(groupFilter))
+    );
+  })
+  .sort((a, b) => {
+    const dateA = new Date(`${a.date}T${a.time_start || '00:00'}`);
+    const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
+    return dateB.getTime() - dateA.getTime();
+  });
+
+  // Add local state for single day summary
+  const [optimisticSingleDayStats, setOptimisticSingleDayStats] = useState<null | {
+    sales: number;
+    cash: number;
+    card: number;
+    wallet: number;
+    expenses: number;
+    net: number;
+  }>(null);
+
+  // Compute single day stats from local state if available, otherwise from calculated values
+  const displaySingleDaySales = optimisticSingleDayStats ? optimisticSingleDayStats.sales : singleDaySales;
+  const displaySingleDayCash = optimisticSingleDayStats ? optimisticSingleDayStats.cash : singleDayCash;
+  const displaySingleDayCard = optimisticSingleDayStats ? optimisticSingleDayStats.card : singleDayCard;
+  const displaySingleDayWallet = optimisticSingleDayStats ? optimisticSingleDayStats.wallet : singleDayWallet;
+  const displaySingleDayExpenses = optimisticSingleDayStats ? optimisticSingleDayStats.expenses : singleDayTotalExpenses;
+  const displaySingleDayNet = optimisticSingleDayStats ? optimisticSingleDayStats.net : singleDayNet;
+
+  // Add state for pending delete reservation
+  const [pendingDeleteReservation, setPendingDeleteReservation] = useState<any>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Financials</h2>
+            <h2 className="text-3xl font-bold tracking-tight">{t("financials")}</h2>
             <p className="text-muted-foreground">
-              Overview of your financial data
+              {t("overview_of_financial_data")}
             </p>
           </div>
           <div className="flex flex-col md:flex-row gap-2 items-center">
@@ -360,7 +756,7 @@ const FinancialsPage = () => {
               <PopoverTrigger asChild>
                 <Button variant="outline" className="w-[220px] justify-start text-left font-normal">
                   <span className="mr-2">📅</span>
-                  {singleDay ? format(singleDay, "LLL dd, y") : "Pick a day"}
+                  {singleDay ? format(singleDay, "LLL dd, y") : t("pick_a_date")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-auto p-0">
@@ -376,7 +772,7 @@ const FinancialsPage = () => {
                 />
                 {singleDay && (
                   <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={() => setSingleDay(null)}>
-                    Clear
+                    {t("clear")}
                   </Button>
                 )}
               </PopoverContent>
@@ -386,40 +782,40 @@ const FinancialsPage = () => {
         
         <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="income">Income</TabsTrigger>
-            <TabsTrigger value="expenses">Expenses</TabsTrigger>
-            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="overview">{t("overview")}</TabsTrigger>
+            <TabsTrigger value="income">{t("income")}</TabsTrigger>
+            <TabsTrigger value="expenses">{t("expenses")}</TabsTrigger>
+            <TabsTrigger value="summary">{t("summary")}</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
-                title={singleDay ? `${format(singleDay, "PPP")} Revenue` : "Today's Revenue"}
+                title={singleDay ? `${format(singleDay, "PPP")} ${t("revenue")}` : t("todays_revenue")}
                 value={singleDay ? Math.round(singleDaySales).toString() : Math.round(stats.todayRevenue).toString()}
                 icon={DollarSign}
-                description={singleDay ? `Total revenue for ${format(singleDay, "PPP")}` : "Total revenue for today"}
+                description={singleDay ? `${t("total_revenue_for")} ${format(singleDay, "PPP")}` : t("total_revenue_for_today")}
                 positive={true}
               />
               <StatCard
-                title={singleDay ? `${format(singleDay, "PPP")} Expenses` : "Today's Expenses"}
+                title={singleDay ? `${format(singleDay, "PPP")} ${t("expenses")}` : t("todays_expenses")}
                 value={singleDay ? Math.round(singleDayTotalExpenses).toString() : Math.round(stats.todayExpenses).toString()}
                 icon={TrendingDown}
-                description={singleDay ? `Total expenses for ${format(singleDay, "PPP")}` : "Total expenses for today"}
+                description={singleDay ? `${t("total_expenses_for")} ${format(singleDay, "PPP")}` : t("total_expenses_for_today")}
                 negative={true}
               />
               <StatCard
-                title={singleDay ? `Total Revenue` : "Total Revenue"}
+                title={singleDay ? t("total_revenue") : t("total_revenue")}
                 value={singleDay ? Math.round(singleDaySales).toString() : Math.round(stats.totalRevenue).toString()}
                 icon={TrendingUp}
-                description={singleDay ? `Total sales for ${format(singleDay, "PPP")}` : "All-time revenue"}
+                description={singleDay ? `${t("total_sales_for")} ${format(singleDay, "PPP")}` : t("all_time_revenue")}
                 positive={true}
               />
               <StatCard
-                title={singleDay ? `Net Profit` : "Net Profit"}
+                title={singleDay ? t("net_profit") : t("net_profit")}
                 value={singleDay ? Math.round(singleDaySales - singleDayTotalExpenses).toString() : Math.round(stats.netProfit).toString()}
                 icon={CreditCard}
-                description={singleDay ? `Net profit for ${format(singleDay, "PPP")}` : "Total revenue minus expenses"}
+                description={singleDay ? `${t("net_profit_for")} ${format(singleDay, "PPP")}` : t("total_revenue_minus_expenses")}
                 positive={singleDay ? (singleDaySales - singleDayTotalExpenses) > 0 : stats.netProfit > 0}
                 negative={singleDay ? (singleDaySales - singleDayTotalExpenses) < 0 : stats.netProfit < 0}
               />
@@ -428,7 +824,7 @@ const FinancialsPage = () => {
             <div className="grid gap-4 md:grid-cols-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>Recent Transactions</CardTitle>
+                  <CardTitle>{t("recent_transactions")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {transactionsLoading ? (
@@ -449,9 +845,6 @@ const FinancialsPage = () => {
                             <div className="font-medium text-green-600">
                               &#163;{Math.round(parseFloat(transaction.amount.toString()))}
                             </div>
-                            <div className="text-xs text-muted-foreground capitalize">
-                              {transaction.payment_method}
-                            </div>
                           </div>
                         </div>
                       ))}
@@ -465,7 +858,7 @@ const FinancialsPage = () => {
               
               <Card>
                 <CardHeader>
-                  <CardTitle>Recent Expenses</CardTitle>
+                  <CardTitle>{t("recent_expenses")}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {expensesLoading ? (
@@ -501,62 +894,298 @@ const FinancialsPage = () => {
             <div className="flex items-center space-x-2 mb-4">
               <Search className="w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Filter by court name..."
+                placeholder={t("filter_by_court")}
                 value={incomeCourtFilter}
                 onChange={(e) => setIncomeCourtFilter(e.target.value)}
                 className="max-w-xs"
               />
               <Input
-                placeholder="Filter by client name..."
+                placeholder={t("filter_by_client")}
                 value={incomeClientFilter}
                 onChange={(e) => setIncomeClientFilter(e.target.value)}
                 className="max-w-xs"
               />
               <Input
-                placeholder="Filter by group name..."
+                placeholder={t("filter_by_group")}
                 value={incomeGroupFilter}
                 onChange={(e) => setIncomeGroupFilter(e.target.value)}
                 className="max-w-xs"
               />
+              <Dialog open={reservationDialogOpen} onOpenChange={setReservationDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t("new_sales")}
+                  </Button>
+                </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Add Reservation</DialogTitle>
+                  <DialogDescription>
+                    Create a new reservation for a padel court.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div>
+                    <Label htmlFor="date">Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !reservationDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {reservationDate ? format(reservationDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={reservationDate}
+                          onSelect={setReservationDate}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div>
+                    <Label htmlFor="court">Court</Label>
+                    <Select
+                      value={selectedCourt}
+                      onValueChange={(value) => setSelectedCourt(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select court" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {courts.map((court) => (
+                          <SelectItem key={court.id} value={court.id}>
+                            {court.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="time-start">Start Time</Label>
+                      <Select
+                        value={timeStart}
+                        onValueChange={handleTimeStartChange}
+                      >
+                        <SelectTrigger id="time-start">
+                          <SelectValue placeholder="Start time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeSlots.map((time) => (
+                            <SelectItem key={`start-${time}`} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="time-end">End Time</Label>
+                      <Select
+                        value={timeEnd}
+                        onValueChange={(value) => setTimeEnd(value)}
+                      >
+                        <SelectTrigger id="time-end">
+                          <SelectValue placeholder="End time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeSlots.map((time) => (
+                            <SelectItem key={`end-${time}`} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="client">Client</Label>
+                    <div className="relative">
+                      <Input
+                        id="client"
+                        ref={clientInputRef}
+                        type="text"
+                        autoComplete="off"
+                        placeholder="Type client name or phone..."
+                        value={clientSearch}
+                        onChange={e => {
+                          setClientSearch(e.target.value);
+                          setShowClientDropdown(true);
+                          setSelectedClient("");
+                        }}
+                        onFocus={() => setShowClientDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowClientDropdown(false), 150)}
+                        onKeyDown={handleClientInputKeyDown}
+                      />
+                      {showClientDropdown && (
+                        <div className="absolute z-10 bg-white border w-full mt-1 rounded shadow max-h-48 overflow-auto">
+                          {clientSearchResults.length > 0 ? (
+                            clientSearchResults.map((client, idx) => (
+                              <div
+                                key={client.id}
+                                className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${idx === clientDropdownIndex ? 'bg-gray-100' : ''}`}
+                                onMouseDown={() => {
+                                  setSelectedClient(client.id);
+                                  setClientSearch(client.name);
+                                  setShowClientDropdown(false);
+                                }}
+                              >
+                                {client.name} — {client.phone}
+                              </div>
+                            ))
+                          ) : (
+                            <div
+                              className="px-3 py-2 text-muted-foreground cursor-pointer hover:bg-gray-100"
+                              onMouseDown={() => setIsAddClientDialogOpen(true)}
+                            >
+                              No client found. <span className="text-blue-600 underline">Add new?</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="cash">{t("amount_of_cash")}</Label>
+                      <Input
+                        id="cash"
+                        type="number"
+                        value={cash}
+                        onChange={e => setCash(Number(e.target.value))}
+                        min={0}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="card">{t("amount_of_card")}</Label>
+                      <Input
+                        id="card"
+                        type="number"
+                        value={card}
+                        onChange={e => setCard(Number(e.target.value))}
+                        min={0}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="wallet">{t("amount_of_wallet")}</Label>
+                      <Input
+                        id="wallet"
+                        type="number"
+                        value={wallet}
+                        onChange={e => setWallet(Number(e.target.value))}
+                        min={0}
+                      />
+                    </div>
+                  </div>
+                    <div className="text-right font-semibold text-lg mt-2">
+                      Total: £{(Number(cash) || 0) + (Number(card) || 0) + (Number(wallet) || 0)}
+                    </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button variant="outline" onClick={() => setReservationDialogOpen(false)} disabled={isSubmittingReservation}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAddReservation} disabled={isSubmittingReservation}>
+                    {isSubmittingReservation ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    Add Reservation
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
             </div>
             
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Court</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Method</TableHead>
-                    <TableHead>Group</TableHead>
-                    <TableHead className="text-right">Amount (&#163;)</TableHead>
+                    <TableHead>{t("client")}</TableHead>
+                    <TableHead>{t("court")}</TableHead>
+                    <TableHead>{t("date")}</TableHead>
+                    <TableHead>{t("group")}</TableHead>
+                    <TableHead className="text-right">{t("amount")} (&pound;)</TableHead>
+                    <TableHead className="text-right">{t("cash")} (&pound;)</TableHead>
+                    <TableHead className="text-right">{t("card")} (&pound;)</TableHead>
+                    <TableHead className="text-right">{t("wallet")} (&pound;)</TableHead>
+                    <TableHead>{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {transactionsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
+                      <TableCell colSpan={9} className="text-center py-8">
                         Loading transactions...
                       </TableCell>
                     </TableRow>
-                  ) : filteredIncomeTransactions.length > 0 ? (
-                    filteredIncomeTransactions.map(transaction => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>{transaction.reservations?.clients?.name || "N/A"}</TableCell>
-                        <TableCell>{transaction.reservations?.courts?.name || "N/A"}</TableCell>
-                        <TableCell>{new Date(transaction.date).toLocaleDateString()}</TableCell>
-                        <TableCell className="capitalize">{transaction.payment_method}</TableCell>
-                        <TableCell>{transaction.reservations?.courts && 'court_groups' in transaction.reservations.courts && transaction.reservations.courts.court_groups?.name ? transaction.reservations.courts.court_groups.name : '-'}</TableCell>
-                        <TableCell className="text-right font-medium text-green-600">
-                          &#163;{Math.round(parseFloat(transaction.amount.toString()))}
-                        </TableCell>
-                      </TableRow>
-                    ))
+                  ) : filteredIncomeReservations.length > 0 ? (
+                    filteredIncomeReservations.map(row => {
+                      const total = (row.cash ?? 0) + (row.card ?? 0) + (row.wallet ?? 0);
+                      return (
+                        <TableRow key={row.id}>
+                          <TableCell>{row.clients?.name || "N/A"}</TableCell>
+                          <TableCell>{row.courts?.name || "N/A"}</TableCell>
+                          <TableCell>{new Date(row.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{row.courts?.court_groups?.name || '-'}</TableCell>
+                          <TableCell className="text-right font-medium">&#163;{total}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">&#163;{row.cash ?? 0}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">&#163;{row.card ?? 0}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">&#163;{row.wallet ?? 0}</TableCell>
+                          <TableCell className="p-4 flex gap-2">
+                            <Button size="icon" variant="ghost" onClick={() => {
+                              // Set all edit states from the reservation row
+                                setSelectedReservation(row);
+                              setReservationDate(new Date(row.date));
+                              setSelectedCourt(row.courts?.id || "");
+                              setTimeStart(row.time_start || "09:00");
+                              setTimeEnd(row.time_end || "10:00");
+                              setSelectedClient(row.clients?.id || "");
+                              setClientSearch(row.clients?.name || "");
+                              setCash(row.cash ?? 0);
+                              setCard(row.card ?? 0);
+                              setWallet(row.wallet ?? 0);
+                                setEditReservationDialogOpen(true);
+                            }}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={() => {
+                              if (!row.id) return;
+                              setPendingDeleteReservation(row);
+                              setShowDeleteDialog(true);
+                            }}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
+                      <TableCell colSpan={9} className="text-center py-8">
                         No transactions found
                       </TableCell>
+                    </TableRow>
+                  )}
+                  {(incomeCourtFilter || incomeClientFilter || incomeGroupFilter) && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="font-bold text-right">{t("total")}</TableCell>
+                      <TableCell className="font-bold text-right">
+                        £{filteredIncomeReservations.reduce((sum, row) => sum + ((row.cash ?? 0) + (row.card ?? 0) + (row.wallet ?? 0)), 0)}
+                      </TableCell>
+                      <TableCell />
+                      <TableCell />
+                      <TableCell />
+                      <TableCell />
                     </TableRow>
                   )}
                 </TableBody>
@@ -568,126 +1197,126 @@ const FinancialsPage = () => {
             <div className="flex items-center space-x-2 mb-4">
                 <Search className="w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Filter by expense name..."
+                placeholder={t("filter_by_expense_name")}
                 value={expenseNameFilter}
                 onChange={(e) => setExpenseNameFilter(e.target.value)}
                 className="max-w-xs"
               />
               <Input
-                placeholder="Filter by category..."
+                placeholder={t("filter_by_category")}
                 value={expenseCategoryFilter}
                 onChange={(e) => setExpenseCategoryFilter(e.target.value)}
                 className="max-w-xs"
               />
                 <Input
-                  placeholder="Search expenses..."
+                  placeholder={t("search_expenses")}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="max-w-sm"
                 />
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setIsCategoryManagerOpen(true)}>
-                  Manage Categories
+                <Button variant="outline" className="mr-2">
+                  {t("manage_categories")}
                 </Button>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Expense
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New Expense</DialogTitle>
-                  </DialogHeader>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="title"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Title</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Electricity Bill" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="amount"
-                        render={({ field }) => (
-                          <FormItem>
-                              <FormLabel>Amount (&#163;)</FormLabel>
-                            <FormControl>
-                              <Input type="number" step="0.01" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      {t("add_expense")}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{t("add_new_expense")}</DialogTitle>
+                    </DialogHeader>
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name="title"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("title")}</FormLabel>
+                              <FormControl>
+                                <Input placeholder={t("expense_title_placeholder")} {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                          <FormField
-                            control={form.control}
-                            name="category_id"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Category</FormLabel>
-                                <div className="flex gap-2">
-                                  <FormControl>
-                                    <select
-                                      className="border rounded px-2 py-1"
-                                      value={field.value || ""}
-                                      onChange={field.onChange}
-                                    >
-                                      <option value="">No Category</option>
-                                      {categories.map((cat) => (
-                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                      ))}
-                                    </select>
-                                  </FormControl>
-                                  <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryDialogOpen(true)}>
-                                    + Add Category
-                                  </Button>
-                                </div>
+                        <FormField
+                          control={form.control}
+                          name="amount"
+                          render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>{t("amount")} (&pound;)</FormLabel>
+                              <FormControl>
+                                <Input type="number" step="0.01" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="date"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{t("date")}</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} />
+                                </FormControl>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
-                          <FormField
-                            control={form.control}
-                            name="notes"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Notes</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="Optional notes..." {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Button type="submit" className="w-full">
-                        Add Expense
-                      </Button>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
+                            <FormField
+                              control={form.control}
+                              name="category_id"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t("category")}</FormLabel>
+                                  <div className="flex gap-2">
+                                    <FormControl>
+                                      <select
+                                        className="border rounded px-2 py-1"
+                                        value={field.value || ""}
+                                        onChange={field.onChange}
+                                      >
+                                        <option value="">{t("no_category")}</option>
+                                        {categories.map((cat) => (
+                                          <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                        ))}
+                                      </select>
+                                    </FormControl>
+                                    <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryDialogOpen(true)}>
+                                      + {t("add_category")}
+                                    </Button>
+                                  </div>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="notes"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>{t("notes")}</FormLabel>
+                                  <FormControl>
+                                    <Input placeholder={t("optional_notes")} {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button type="submit" className="w-full">
+                          {t("add_expense")}
+                        </Button>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
             
@@ -695,19 +1324,19 @@ const FinancialsPage = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Title</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Category</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead className="text-right">Amount (&#163;)</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>{t("title")}</TableHead>
+                    <TableHead>{t("date")}</TableHead>
+                    <TableHead>{t("category")}</TableHead>
+                    <TableHead>{t("notes")}</TableHead>
+                    <TableHead className="text-right">{t("amount")} (&pound;)</TableHead>
+                    <TableHead>{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {expensesLoading ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8">
-                        Loading expenses...
+                        {t("loading_expenses")}
                       </TableCell>
                     </TableRow>
                   ) : filteredExpenses.length > 0 ? (
@@ -741,7 +1370,7 @@ const FinancialsPage = () => {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8">
-                        No expenses found
+                        {t("no_expenses_found")}
                       </TableCell>
                     </TableRow>
                   )}
@@ -761,17 +1390,17 @@ const FinancialsPage = () => {
                 {/* Single Day Financials Section */}
                 {singleDay && (
                   <div className="space-y-4">
-                    <h3 className="text-xl font-bold">Financials for {format(singleDay, "PPP")}</h3>
+                    <h3 className="text-xl font-bold">{`${t("financials_for")}: ${format(singleDay, "PPP")}`}</h3>
                     <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-                      <StatCard title="Sales" value={Math.round(singleDaySales).toString()} icon={DollarSign} description="Total sales for the day" positive={true} />
-                      <StatCard title="Cash" value={Math.round(singleDayCash).toString()} icon={DollarSign} description="Cash payments" positive={true} />
-                      <StatCard title="Card" value={Math.round(singleDayCard).toString()} icon={CreditCard} description="Card payments" positive={true} />
-                      <StatCard title="Wallet" value={Math.round(singleDayWallet).toString()} icon={DollarSign} description="Wallet payments" positive={true} />
-                      <StatCard title="Expenses" value={Math.round(singleDayTotalExpenses).toString()} icon={TrendingDown} description="Expenses for the day" negative={true} />
-                      <StatCard title="Cash - Expenses" value={Math.round(singleDayNet).toString()} icon={DollarSign} description="Cash minus expenses" positive={singleDayNet >= 0} negative={singleDayNet < 0} />
+                      <StatCard title={t("sales")} value={Math.round(displaySingleDaySales).toString()} icon={DollarSign} description={t("total_sales_for_day")} positive={true} />
+                      <StatCard title={t("cash")} value={Math.round(displaySingleDayCash).toString()} icon={DollarSign} description={t("cash_payments")} positive={true} />
+                      <StatCard title={t("card")} value={Math.round(displaySingleDayCard).toString()} icon={CreditCard} description={t("card_payments")} positive={true} />
+                      <StatCard title={t("wallet")} value={Math.round(displaySingleDayWallet).toString()} icon={DollarSign} description={t("wallet_payments")} positive={true} />
+                      <StatCard title={t("expenses")} value={Math.round(displaySingleDayExpenses).toString()} icon={TrendingDown} description={t("expenses_for_day")} negative={true} />
+                      <StatCard title={t("cash_minus_expenses")} value={Math.round(displaySingleDayNet).toString()} icon={DollarSign} description={t("cash_minus_expenses")} positive={displaySingleDayNet >= 0} negative={displaySingleDayNet < 0} />
                     </div>
                     {/* Court group sales for single day */}
-                    <h3 className="text-2xl font-bold mt-8 mb-2">Courts Sale Summary</h3>
+                    <h3 className="text-2xl font-bold mt-8 mb-2">{t("court_sale_summary")}</h3>
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                       {singleDayCourtSales.map(group => (
                         <Card key={group.groupName} className="shadow-lg">
@@ -793,6 +1422,11 @@ const FinancialsPage = () => {
                                     <td className="p-2 text-right font-semibold text-green-600">{Math.round(court.sales)}</td>
                                   </tr>
                                 ))}
+                                {/* Total row */}
+                                <tr className="border-t font-bold">
+                                  <td className="p-2">Total</td>
+                                  <td className="p-2 text-right text-green-700">{Math.round(group.courts.reduce((sum, court) => sum + court.sales, 0))}</td>
+                                </tr>
                               </tbody>
                             </table>
                           </CardContent>
@@ -801,16 +1435,16 @@ const FinancialsPage = () => {
                     </div>
                     <Card>
                       <CardHeader>
-                        <CardTitle>Expenses for the Day</CardTitle>
+                        <CardTitle>{t("expenses_for_the_day")}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <table className="w-full text-sm">
                           <thead>
                             <tr>
-                              <th className="text-left p-2">Title</th>
-                              <th className="text-left p-2">Category</th>
-                              <th className="text-left p-2">Notes</th>
-                              <th className="text-right p-2">Amount (&#163;)</th>
+                              <th className="text-left p-2">{t("title")}</th>
+                              <th className="text-left p-2">{t("category")}</th>
+                              <th className="text-left p-2">{t("notes")}</th>
+                              <th className="text-right p-2">{t("amount")} (&pound;)</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -879,7 +1513,7 @@ const FinancialsPage = () => {
                       />
                     </div>
                     {/* Court group sales */}
-                    <h3 className="text-2xl font-bold mt-8 mb-2">Courts Sale Summary</h3>
+                    <h3 className="text-2xl font-bold mt-8 mb-2">{t("court_sale_summary")}</h3>
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                       {groupedCourtSales.map(group => (
                         <Card key={group.groupName} className="shadow-lg">
@@ -901,6 +1535,11 @@ const FinancialsPage = () => {
                                     <td className="p-2 text-right font-semibold text-green-600">{Math.round(court.sales)}</td>
                                   </tr>
                                 ))}
+                                {/* Total row */}
+                                <tr className="border-t font-bold">
+                                  <td className="p-2">Total</td>
+                                  <td className="p-2 text-right text-green-700">{Math.round(group.courts.reduce((sum, court) => sum + court.sales, 0))}</td>
+                                </tr>
                               </tbody>
                             </table>
                           </CardContent>
@@ -910,16 +1549,16 @@ const FinancialsPage = () => {
                     {/* New Expenses Card at the end */}
                     <Card>
                       <CardHeader>
-                        <CardTitle>Recent Expenses</CardTitle>
+                        <CardTitle>{t("recent_expenses")}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         <table className="w-full text-sm">
                           <thead>
                             <tr>
-                              <th className="text-left p-2">Name</th>
-                              <th className="text-left p-2">Category</th>
-                              <th className="text-left p-2">Notes</th>
-                              <th className="text-right p-2">Amount (&#163;)</th>
+                              <th className="text-left p-2">{t("name")}</th>
+                              <th className="text-left p-2">{t("category")}</th>
+                              <th className="text-left p-2">{t("notes")}</th>
+                              <th className="text-right p-2">{t("amount")} (&pound;)</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1145,7 +1784,9 @@ const FinancialsPage = () => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the expense and cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This will permanently delete the expense and cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteExpenseDialogOpen(false)}>Cancel</AlertDialogCancel>
@@ -1154,6 +1795,376 @@ const FinancialsPage = () => {
               await deleteExpense(deleteExpenseId);
               setDeleteExpenseDialogOpen(false);
               setDeleteExpenseId(null);
+            }}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <Dialog open={isAddClientDialogOpen} onOpenChange={setIsAddClientDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Client</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="Full Name"
+              value={newClientName}
+              onChange={e => setNewClientName(e.target.value)}
+            />
+            <Input
+              placeholder="Mobile Number"
+              value={newClientPhone}
+              onChange={e => setNewClientPhone(e.target.value)}
+            />
+            <Button
+              onClick={async () => {
+                if (!newClientName.trim() || !newClientPhone.trim()) {
+                  toast({ title: "Error", description: "Please fill all fields", variant: "destructive" });
+                  return;
+                }
+                setIsAddingClient(true);
+                const { data, error } = await supabase
+                  .from('clients')
+                  .insert({ client_id: crypto.randomUUID(), name: newClientName.trim(), phone: newClientPhone.trim() })
+                  .select();
+                setIsAddingClient(false);
+                if (error) {
+                  toast({ title: "Error", description: error.message, variant: "destructive" });
+                  return;
+                }
+                if (data && data[0]) {
+                  setSelectedClient(data[0].id);
+                  setClientSearch(data[0].name);
+                  setShowClientDropdown(false);
+                  setIsAddClientDialogOpen(false);
+                  setNewClientName("");
+                  setNewClientPhone("");
+                  toast({ title: "Client added", description: "New client has been added." });
+                }
+              }}
+              className="w-full"
+              disabled={isAddingClient}
+            >
+              {isAddingClient ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Add Client
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={editReservationDialogOpen} onOpenChange={setEditReservationDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit Reservation</DialogTitle>
+            <DialogDescription>
+              Edit the reservation details.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedReservation && (
+            <div className="grid gap-4 py-4">
+              <div>
+                <Label htmlFor="date">Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !reservationDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {reservationDate ? format(reservationDate, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={reservationDate}
+                      onSelect={setReservationDate}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label htmlFor="court">Court</Label>
+                <Select
+                  value={selectedCourt}
+                  onValueChange={(value) => setSelectedCourt(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select court" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {courts.map((court) => (
+                      <SelectItem key={court.id} value={court.id}>
+                        {court.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="time-start">Start Time</Label>
+                  <Select
+                    value={timeStart}
+                    onValueChange={handleTimeStartChange}
+                  >
+                    <SelectTrigger id="time-start">
+                      <SelectValue placeholder="Start time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timeSlots.map((time) => (
+                        <SelectItem key={`start-${time}`} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="time-end">End Time</Label>
+                  <Select
+                    value={timeEnd}
+                    onValueChange={(value) => setTimeEnd(value)}
+                  >
+                    <SelectTrigger id="time-end">
+                      <SelectValue placeholder="End time" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {timeSlots.map((time) => (
+                        <SelectItem key={`end-${time}`} value={time}>
+                          {time}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="client">Client</Label>
+                <div className="relative">
+                  <Input
+                    id="client"
+                    ref={clientInputRef}
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Type client name or phone..."
+                    value={clientSearch}
+                    onChange={e => {
+                      setClientSearch(e.target.value);
+                      setShowClientDropdown(true);
+                      setSelectedClient("");
+                    }}
+                    onFocus={() => setShowClientDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowClientDropdown(false), 150)}
+                    onKeyDown={handleClientInputKeyDown}
+                  />
+                  {showClientDropdown && (
+                    <div className="absolute z-10 bg-white border w-full mt-1 rounded shadow max-h-48 overflow-auto">
+                      {clientSearchResults.length > 0 ? (
+                        clientSearchResults.map((client, idx) => (
+                          <div
+                            key={client.id}
+                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${idx === clientDropdownIndex ? 'bg-gray-100' : ''}`}
+                            onMouseDown={() => {
+                              setSelectedClient(client.id);
+                              setClientSearch(client.name);
+                              setShowClientDropdown(false);
+                            }}
+                          >
+                            {client.name} — {client.phone}
+                          </div>
+                        ))
+                      ) : (
+                        <div
+                          className="px-3 py-2 text-muted-foreground cursor-pointer hover:bg-gray-100"
+                          onMouseDown={() => setIsAddClientDialogOpen(true)}
+                        >
+                          No client found. <span className="text-blue-600 underline">Add new?</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="cash">{t("amount_of_cash")}</Label>
+                  <Input
+                    id="cash"
+                    type="number"
+                    value={cash}
+                    onChange={e => setCash(Number(e.target.value))}
+                    min={0}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="card">{t("amount_of_card")}</Label>
+                  <Input
+                    id="card"
+                    type="number"
+                    value={card}
+                    onChange={e => setCard(Number(e.target.value))}
+                    min={0}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="wallet">{t("amount_of_wallet")}</Label>
+                  <Input
+                    id="wallet"
+                    type="number"
+                    value={wallet}
+                    onChange={e => setWallet(Number(e.target.value))}
+                    min={0}
+                  />
+                </div>
+              </div>
+              <div className="text-right font-semibold text-lg mt-2">
+                Total: £{(Number(cash) || 0) + (Number(card) || 0) + (Number(wallet) || 0)}
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setEditReservationDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={async () => {
+              if (!selectedReservation) return;
+              const prevReservations = [...incomeReservations];
+              const prevStats = optimisticSingleDayStats;
+              // Optimistically update local state
+              setIncomeReservations(incomeReservations.map(res =>
+                res.id === selectedReservation.id
+                  ? {
+                      ...res,
+                      clients: { ...res.clients, id: selectedClient },
+                      courts: { ...res.courts, id: selectedCourt },
+                      date: format(reservationDate!, 'yyyy-MM-dd'),
+                      time_start: timeStart,
+                      time_end: timeEnd,
+                      cash,
+                      card,
+                      wallet,
+                    }
+                  : res
+              ));
+              // Optimistically update summary stats if single day is selected
+              if (singleDay) {
+                const newSales = incomeReservations.reduce((sum, res) => isSameDay(res.date, singleDay) ? sum + (res.cash ?? 0) + (res.card ?? 0) + (res.wallet ?? 0) : sum, 0) - ((selectedReservation.cash ?? 0) + (selectedReservation.card ?? 0) + (selectedReservation.wallet ?? 0)) + (cash + card + wallet);
+                const newCash = incomeReservations.reduce((sum, res) => isSameDay(res.date, singleDay) ? sum + (res.cash ?? 0) : sum, 0) - (selectedReservation.cash ?? 0) + cash;
+                const newCard = incomeReservations.reduce((sum, res) => isSameDay(res.date, singleDay) ? sum + (res.card ?? 0) : sum, 0) - (selectedReservation.card ?? 0) + card;
+                const newWallet = incomeReservations.reduce((sum, res) => isSameDay(res.date, singleDay) ? sum + (res.wallet ?? 0) : sum, 0) - (selectedReservation.wallet ?? 0) + wallet;
+                setOptimisticSingleDayStats({
+                  sales: newSales,
+                  cash: newCash,
+                  card: newCard,
+                  wallet: newWallet,
+                  expenses: displaySingleDayExpenses,
+                  net: newCash - displaySingleDayExpenses,
+                });
+              }
+              setEditReservationDialogOpen(false);
+              try {
+                // Update reservation
+                await supabase.from('reservations').update({
+              client_id: selectedClient,
+              court_id: selectedCourt,
+              date: format(reservationDate!, 'yyyy-MM-dd'),
+              time_start: timeStart,
+              time_end: timeEnd,
+              cash,
+              card,
+              wallet,
+                  amount: cash + card + wallet
+                }).eq('id', selectedReservation.id);
+                // Delete old transactions for this reservation
+                await supabase.from('transactions').delete().eq('reservation_id', selectedReservation.id);
+                // Insert new transactions for each payment type
+                const txInserts = [];
+                if (cash > 0) txInserts.push({ reservation_id: selectedReservation.id, amount: cash, payment_method: 'cash', date: format(reservationDate!, 'yyyy-MM-dd') });
+                if (card > 0) txInserts.push({ reservation_id: selectedReservation.id, amount: card, payment_method: 'card', date: format(reservationDate!, 'yyyy-MM-dd') });
+                if (wallet > 0) txInserts.push({ reservation_id: selectedReservation.id, amount: wallet, payment_method: 'wallet', date: format(reservationDate!, 'yyyy-MM-dd') });
+                if (txInserts.length > 0) {
+                  await supabase.from('transactions').insert(txInserts);
+                }
+              } catch (error) {
+                // Rollback on error
+                setIncomeReservations(prevReservations);
+                setOptimisticSingleDayStats(prevStats);
+              }
+            }}>
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={deleteReservationDialogOpen} onOpenChange={setDeleteReservationDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the reservation and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteReservationDialogOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-500 hover:bg-red-600"
+              onClick={handleDeleteReservation}
+              disabled={isDeletingReservation}
+            >
+              {isDeletingReservation ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              {t("delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* Confirmation dialog for delete */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the reservation and cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
+              if (!pendingDeleteReservation?.id) return;
+              const row = pendingDeleteReservation;
+              const prevReservations = [...incomeReservations];
+              const prevStats = optimisticSingleDayStats;
+              setIncomeReservations(incomeReservations.filter(res => res.id !== row.id));
+              if (singleDay && isSameDay(row.date, singleDay)) {
+                const newSales = displaySingleDaySales - ((row.cash ?? 0) + (row.card ?? 0) + (row.wallet ?? 0));
+                const newCash = displaySingleDayCash - (row.cash ?? 0);
+                const newCard = displaySingleDayCard - (row.card ?? 0);
+                const newWallet = displaySingleDayWallet - (row.wallet ?? 0);
+                setOptimisticSingleDayStats({
+                  sales: newSales,
+                  cash: newCash,
+                  card: newCard,
+                  wallet: newWallet,
+                  expenses: displaySingleDayExpenses,
+                  net: newCash - displaySingleDayExpenses,
+                });
+              }
+              setPendingDeleteReservation(null);
+              setShowDeleteDialog(false);
+              try {
+                await supabase.from('transactions').delete().eq('reservation_id', row.id);
+                await supabase.from('reservations').delete().eq('id', row.id);
+              } catch (error) {
+                setIncomeReservations(prevReservations);
+                setOptimisticSingleDayStats(prevStats);
+              }
             }}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

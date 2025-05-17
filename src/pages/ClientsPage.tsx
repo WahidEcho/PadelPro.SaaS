@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Input } from "@/components/ui/input";
@@ -33,6 +32,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useClientsData } from "@/hooks/use-clients-data";
 import { Client } from "@/types/supabase";
+import { useLanguage } from "@/contexts/language-context";
 
 const clientFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
@@ -47,6 +47,7 @@ const ClientsPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const { toast } = useToast();
+  const { t, language } = useLanguage();
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
@@ -127,29 +128,30 @@ const ClientsPage = () => {
     client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (client.phone && client.phone.includes(searchTerm)) ||
     client.client_id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  )
+  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Clients</h2>
+            <h2 className="text-3xl font-bold tracking-tight">{t("clients")}</h2>
             <p className="text-muted-foreground">
-              Manage your client database
+              {t("manage_clients")}
             </p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
-                Add Client
+                {t("add_client")}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>
-                  {editingClient ? "Edit Client" : "Add New Client"}
+                  {editingClient ? t("edit_client") : t("add_new_client")}
                 </DialogTitle>
               </DialogHeader>
               <Form {...form}>
@@ -159,7 +161,7 @@ const ClientsPage = () => {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Name</FormLabel>
+                        <FormLabel>{t("name")}</FormLabel>
                         <FormControl>
                           <Input placeholder="John Smith" {...field} />
                         </FormControl>
@@ -172,7 +174,7 @@ const ClientsPage = () => {
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Phone</FormLabel>
+                        <FormLabel>{t("phone")}</FormLabel>
                         <FormControl>
                           <Input placeholder="123456789" {...field} />
                         </FormControl>
@@ -181,7 +183,7 @@ const ClientsPage = () => {
                     )}
                   />
                   <Button type="submit" className="w-full">
-                    {editingClient ? "Update Client" : "Add Client"}
+                    {editingClient ? t("update_client") : t("add_client")}
                   </Button>
                 </form>
               </Form>
@@ -192,7 +194,7 @@ const ClientsPage = () => {
         <div className="flex items-center space-x-2 mb-4">
           <Search className="w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search clients by name, phone or ID..."
+            placeholder={t("search_clients_placeholder")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="max-w-sm"
@@ -203,17 +205,17 @@ const ClientsPage = () => {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Client ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Registered</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className={`font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("client_id")}</TableHead>
+                <TableHead className={`font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("name")}</TableHead>
+                <TableHead className={`font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("phone")}</TableHead>
+                <TableHead className={`font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("registered")}</TableHead>
+                <TableHead className={`font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
+                  <TableCell colSpan={5} className={`text-center py-8 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
                     <div className="flex justify-center">
                       <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
@@ -222,21 +224,19 @@ const ClientsPage = () => {
               ) : filteredClients.length > 0 ? (
                 filteredClients.map((client) => (
                   <TableRow key={client.id}>
-                    <TableCell className="font-medium">{client.client_id}</TableCell>
-                    <TableCell>{client.name}</TableCell>
-                    <TableCell>{client.phone || '-'}</TableCell>
-                    <TableCell>
-                      {new Date(client.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                    <TableCell className={`font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{client.client_id}</TableCell>
+                    <TableCell className={`${language === 'ar' ? 'text-right' : 'text-left'}`}>{client.name}</TableCell>
+                    <TableCell className={`${language === 'ar' ? 'text-right' : 'text-left'}`}>{client.phone || '-'}</TableCell>
+                    <TableCell className={`${language === 'ar' ? 'text-right' : 'text-left'}`}>{new Date(client.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell className={`font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>
+                      <div className={`flex gap-2 ${language === 'ar' ? 'justify-end' : 'justify-start'}`}>
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleEdit(client)}
                         >
                           <Edit className="h-4 w-4" />
-                          <span className="sr-only">Edit</span>
+                          <span className="sr-only">{t("edit")}</span>
                         </Button>
                         <Button
                           variant="ghost"
@@ -245,19 +245,19 @@ const ClientsPage = () => {
                           onClick={() => handleDelete(client.id)}
                         >
                           <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete</span>
+                          <span className="sr-only">{t("delete")}</span>
                         </Button>
                       </div>
                     </TableCell>
                   </TableRow>
                 ))
-              ) : (
+              ) :
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8">
-                    No clients found
+                  <TableCell colSpan={5} className={`text-center py-8 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
+                    {t("no_clients_found")}
                   </TableCell>
                 </TableRow>
-              )}
+              }
             </TableBody>
           </Table>
         </div>
