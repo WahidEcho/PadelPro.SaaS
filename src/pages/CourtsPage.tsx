@@ -98,12 +98,8 @@ const CourtsPage = () => {
         // Fetch courts with their group names
         const { data: courtsData, error: courtsError } = await supabase
           .from('courts')
-          .select(`
-            *,
-            court_groups(
-              name
-            )
-          `);
+          .select('*, court_groups(name)')
+          .eq('is_deleted', false);
 
         if (courtsError) {
           throw courtsError;
@@ -248,13 +244,10 @@ const CourtsPage = () => {
     try {
       const { error } = await supabase
         .from('courts')
-        .delete()
+        .update({ is_deleted: true })
         .eq('id', courtId);
-
       if (error) throw error;
-
       setCourts(courts.filter(court => court.id !== courtId));
-      
       toast({
         title: t("success"),
         description: t("court_deleted_successfully")

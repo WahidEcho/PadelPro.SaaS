@@ -60,8 +60,8 @@ const ProtectedRoute = ({
   if (!hasAllowedRole) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
-        <h1 className="text-2xl font-bold mb-4">Access Restricted</h1>
-        <p className="mb-4">You don't have permission to access this page.</p>
+        <h1 className="text-2xl font-bold mb-4">Access Granted</h1>
+        <p className="mb-4">Welcome to LEVELS FC PadelPro Manager.</p>
         <Navigate to="/" replace />
       </div>
     );

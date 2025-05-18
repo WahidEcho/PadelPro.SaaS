@@ -33,6 +33,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { AppRole } from "@/types/supabase";
+import { useLanguage } from "@/contexts/language-context";
 
 // Type definition for users with roles
 type UserWithRole = {
@@ -81,6 +82,7 @@ const SettingsPage = () => {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const { t, language } = useLanguage();
 
   const createEmployeeForm = useForm<CreateEmployeeFormValues>({
     resolver: zodResolver(createEmployeeSchema),
@@ -346,28 +348,27 @@ const SettingsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className={`space-y-6 ${language === 'ar' ? 'text-right' : ''}`}>
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
+          <h2 className="text-3xl font-bold tracking-tight">{t("settings")}</h2>
           <p className="text-muted-foreground">
-            Manage your account settings
+            {t("manage_account_settings")}
           </p>
         </div>
         
         <Tabs defaultValue="profile">
-          <TabsList>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="employees">Employees</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsList className={language === 'ar' ? 'flex-row-reverse' : ''}>
+            <TabsTrigger value="profile">{t("profile")}</TabsTrigger>
+            <TabsTrigger value="employees">{t("employees")}</TabsTrigger>
+            <TabsTrigger value="security">{t("security")}</TabsTrigger>
           </TabsList>
           
           <TabsContent value="profile">
             <Card>
               <CardHeader>
-                <CardTitle>Profile</CardTitle>
+                <CardTitle>{t("profile")}</CardTitle>
                 <CardDescription>
-                  Update your personal information
+                  {t("update_personal_info")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -378,7 +379,7 @@ const SettingsPage = () => {
                       name="name"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Name</FormLabel>
+                          <FormLabel>{t("name")}</FormLabel>
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
@@ -391,7 +392,7 @@ const SettingsPage = () => {
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel>{t("email")}</FormLabel>
                           <FormControl>
                             <Input type="email" {...field} disabled />
                           </FormControl>
@@ -403,10 +404,10 @@ const SettingsPage = () => {
                       {isSaving ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Saving...
+                          {t("saving")}
                         </>
                       ) : (
-                        "Save Changes"
+                        t("save_changes")
                       )}
                     </Button>
                   </form>
@@ -415,48 +416,13 @@ const SettingsPage = () => {
             </Card>
           </TabsContent>
           
-          <TabsContent value="notifications">
-            <Card>
-              <CardHeader>
-                <CardTitle>Notifications</CardTitle>
-                <CardDescription>
-                  Configure how you receive notifications
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-4">
-                  <div className="flex items-center justify-between space-x-2">
-                    <Label htmlFor="email-notifs">Email notifications</Label>
-                    <Switch id="email-notifs" defaultChecked />
-                  </div>
-                  <div className="flex items-center justify-between space-x-2">
-                    <Label htmlFor="marketing">Marketing emails</Label>
-                    <Switch id="marketing" />
-                  </div>
-                  <div className="flex items-center justify-between space-x-2">
-                    <Label htmlFor="updates">New feature updates</Label>
-                    <Switch id="updates" defaultChecked />
-                  </div>
-                  <Button onClick={() => {
-                    toast({
-                      title: "Notification settings updated",
-                      description: "Your notification settings have been updated successfully.",
-                    });
-                  }}>
-                    Save Preferences
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
           <TabsContent value="employees">
             <div className="grid gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Create Employee Account</CardTitle>
+                  <CardTitle>{t("create_employee_account")}</CardTitle>
                   <CardDescription>
-                    Add a new employee to the system
+                    {t("add_new_employee")}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -467,10 +433,10 @@ const SettingsPage = () => {
                         name="name"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Employee Name</FormLabel>
+                            <FormLabel>{t("employee_name")}</FormLabel>
                             <FormControl>
                               <Input 
-                                placeholder="Full name" 
+                                placeholder={t("full_name")} 
                                 type="text" 
                                 {...field} 
                               />
@@ -484,7 +450,7 @@ const SettingsPage = () => {
                         name="email"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel>{t("email")}</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="employee@example.com" 
@@ -496,13 +462,12 @@ const SettingsPage = () => {
                           </FormItem>
                         )}
                       />
-                      
                       <FormField
                         control={createEmployeeForm.control}
                         name="password"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Password</FormLabel>
+                            <FormLabel>{t("password")}</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="••••••••" 
@@ -514,13 +479,12 @@ const SettingsPage = () => {
                           </FormItem>
                         )}
                       />
-                      
                       <FormField
                         control={createEmployeeForm.control}
                         name="confirmPassword"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Confirm Password</FormLabel>
+                            <FormLabel>{t("confirm_password")}</FormLabel>
                             <FormControl>
                               <Input 
                                 placeholder="••••••••" 
@@ -532,22 +496,20 @@ const SettingsPage = () => {
                           </FormItem>
                         )}
                       />
-                      
                       <Button type="submit" className="w-full">
-                        Create Employee
+                        {t("create_employee")}
                       </Button>
                     </form>
                   </Form>
                 </CardContent>
               </Card>
-              
               <Card>
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>Employee Accounts</CardTitle>
+                      <CardTitle>{t("employee_accounts")}</CardTitle>
                       <CardDescription>
-                        Manage employee access to the system
+                        {t("manage_employee_access")}
                       </CardDescription>
                     </div>
                     <Button 
@@ -572,7 +534,7 @@ const SettingsPage = () => {
                           <div>
                             <div className="font-medium">{employee.email}</div>
                             <div className="text-sm text-muted-foreground">
-                              Role: {employee.role}
+                              {t("role")}: {employee.role}
                             </div>
                           </div>
                           <div>
@@ -584,14 +546,13 @@ const SettingsPage = () => {
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                  <AlertDialogTitle>{t("are_you_sure")}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    This will permanently delete the employee account for {employee.email}.
-                                    This action cannot be undone.
+                                    {t("delete_employee_warning", { email: employee.email })}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
                                   <AlertDialogAction
                                     className="bg-red-500 hover:bg-red-600"
                                     onClick={() => handleDeleteEmployee(employee.id)}
@@ -599,7 +560,7 @@ const SettingsPage = () => {
                                     {deletingUserId === employee.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                                     ) : null}
-                                    Delete
+                                    {t("delete")}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -610,7 +571,7 @@ const SettingsPage = () => {
                     </div>
                   ) : (
                     <div className="text-center py-4 text-muted-foreground">
-                      No employees found
+                      {t("no_employees_found")}
                     </div>
                   )}
                 </CardContent>
@@ -621,9 +582,9 @@ const SettingsPage = () => {
           <TabsContent value="security">
             <Card className="md:col-span-2">
               <CardHeader>
-                <CardTitle>Security</CardTitle>
+                <CardTitle>{t("security")}</CardTitle>
                 <CardDescription>
-                  Update your password
+                  {t("update_password")}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -634,7 +595,7 @@ const SettingsPage = () => {
                       name="currentPassword"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Current Password</FormLabel>
+                          <FormLabel>{t("current_password")}</FormLabel>
                           <FormControl>
                             <Input type="password" {...field} />
                           </FormControl>
@@ -647,7 +608,7 @@ const SettingsPage = () => {
                       name="newPassword"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>New Password</FormLabel>
+                          <FormLabel>{t("new_password")}</FormLabel>
                           <FormControl>
                             <Input type="password" {...field} />
                           </FormControl>
@@ -660,7 +621,7 @@ const SettingsPage = () => {
                       name="confirmPassword"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormLabel>{t("confirm_new_password")}</FormLabel>
                           <FormControl>
                             <Input type="password" {...field} />
                           </FormControl>
@@ -672,10 +633,10 @@ const SettingsPage = () => {
                       {isChangingPassword ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Updating...
+                          {t("updating")}
                         </>
                       ) : (
-                        "Update Password"
+                        t("update_password")
                       )}
                     </Button>
                   </form>

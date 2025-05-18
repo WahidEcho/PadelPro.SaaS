@@ -16,6 +16,7 @@ export type Database = {
           id: string
           name: string
           phone: string | null
+          is_deleted: boolean
         }
         Insert: {
           client_id: string
@@ -23,6 +24,7 @@ export type Database = {
           id?: string
           name: string
           phone?: string | null
+          is_deleted?: boolean
         }
         Update: {
           client_id?: string
@@ -30,6 +32,7 @@ export type Database = {
           id?: string
           name?: string
           phone?: string | null
+          is_deleted?: boolean
         }
         Relationships: []
       }
@@ -57,18 +60,21 @@ export type Database = {
           group_id: string | null
           id: string
           name: string
+          is_deleted: boolean
         }
         Insert: {
           created_at?: string
           group_id?: string | null
           id?: string
           name: string
+          is_deleted?: boolean
         }
         Update: {
           created_at?: string
           group_id?: string | null
           id?: string
           name?: string
+          is_deleted?: boolean
         }
         Relationships: [
           {

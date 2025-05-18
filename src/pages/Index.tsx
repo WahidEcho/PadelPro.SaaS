@@ -31,7 +31,7 @@ const Index = () => {
       <div className="flex flex-col">
         {/* Welcome Message */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {isAdmin 
               ? t("welcome_admin")
               : t("welcome_employee")}

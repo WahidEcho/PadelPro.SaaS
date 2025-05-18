@@ -111,7 +111,8 @@ const ReservationsPage = () => {
         // Fetch clients with better error handling
         const { data: clientsData, error: clientsError } = await supabase
           .from('clients')
-          .select('*');
+          .select('*')
+          .eq('is_deleted', false);
         
         if (clientsError) {
           console.error('Error fetching clients:', clientsError);
@@ -349,8 +350,13 @@ const ReservationsPage = () => {
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = 0; hour < 24; hour++) {
-      slots.push(`${hour.toString().padStart(2, "0")}:00`);
-      slots.push(`${hour.toString().padStart(2, "0")}:30`);
+      for (let min of [0, 30]) {
+        let displayHour = hour % 12 === 0 ? 12 : hour % 12;
+        let ampm = hour < 12 ? 'AM' : 'PM';
+        let label = `${displayHour.toString().padStart(2, '0')}:${min === 0 ? '00' : '30'} ${ampm}`;
+        let value = `${hour.toString().padStart(2, '0')}:${min === 0 ? '00' : '30'}`;
+        slots.push({ value, label });
+      }
     }
     return slots;
   };
@@ -393,13 +399,15 @@ const ReservationsPage = () => {
     }
   };
 
-  // Add a helper function at the top or near the table rendering
-  function formatTimeHM(timeStr: string | undefined) {
+  // Helper to format time to 12-hour with AM/PM
+  function formatTime12H(timeStr: string | undefined) {
     if (!timeStr) return '';
-    const parts = timeStr.split(":");
-    if (parts.length < 2) return timeStr;
-    const [hour, minute] = parts;
-    return hour.padStart(2, "0") + ":" + minute.padStart(2, "0");
+    const [hourStr, minute] = timeStr.split(":");
+    let hour = parseInt(hourStr, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour === 0) hour = 12;
+    return `${hour.toString().padStart(2, '0')}:${minute} ${ampm}`;
   }
 
   return (
@@ -484,9 +492,9 @@ const ReservationsPage = () => {
                         <SelectValue placeholder={t("start_time")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {timeSlots.map((time) => (
-                          <SelectItem key={`start-${time}`} value={time}>
-                            {time}
+                        {timeSlots.map((slot) => (
+                          <SelectItem key={`start-${slot.value}`} value={slot.value}>
+                            {slot.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -502,9 +510,9 @@ const ReservationsPage = () => {
                         <SelectValue placeholder={t("end_time")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {timeSlots.map((time) => (
-                          <SelectItem key={`end-${time}`} value={time}>
-                            {time}
+                        {timeSlots.map((slot) => (
+                          <SelectItem key={`end-${slot.value}`} value={slot.value}>
+                            {slot.label}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -746,7 +754,7 @@ const ReservationsPage = () => {
                                   {format(new Date(res.date), "MMM d, yyyy")}
                                 </td>
                                 <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
-                                  {formatTimeHM(res.time_start)} - {formatTimeHM(res.time_end)}
+                                  {formatTime12H(res.time_start)} - {formatTime12H(res.time_end)}
                                 </td>
                                 <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>£{(res.cash ?? 0) + (res.card ?? 0) + (res.wallet ?? 0)}</td>
                                 <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>£{res.cash ?? 0}</td>
@@ -869,9 +877,9 @@ const ReservationsPage = () => {
                       <SelectValue placeholder="Start time" />
                     </SelectTrigger>
                     <SelectContent>
-                      {timeSlots.map((time) => (
-                        <SelectItem key={`edit-start-${time}`} value={time}>
-                          {time}
+                      {timeSlots.map((slot) => (
+                        <SelectItem key={`edit-start-${slot.value}`} value={slot.value}>
+                          {slot.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -887,9 +895,9 @@ const ReservationsPage = () => {
                       <SelectValue placeholder="End time" />
                     </SelectTrigger>
                     <SelectContent>
-                      {timeSlots.map((time) => (
-                        <SelectItem key={`edit-end-${time}`} value={time}>
-                          {time}
+                      {timeSlots.map((slot) => (
+                        <SelectItem key={`edit-end-${slot.value}`} value={slot.value}>
+                          {slot.label}
                         </SelectItem>
                       ))}
                     </SelectContent>

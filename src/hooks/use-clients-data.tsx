@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -16,10 +15,9 @@ export function useClientsData() {
       const { data, error } = await supabase
         .from('clients')
         .select('*')
+        .eq('is_deleted', false)
         .order('name');
-        
       if (error) throw error;
-      
       setClients(data || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -99,19 +97,15 @@ export function useClientsData() {
     }
   };
 
-  // Delete a client
+  // Soft delete a client
   const deleteClient = async (id: string) => {
     try {
       const { error } = await supabase
         .from('clients')
-        .delete()
+        .update({ is_deleted: true })
         .eq('id', id);
-        
       if (error) throw error;
-      
-      // Refresh clients
       fetchClients();
-      
       return { success: true };
     } catch (error) {
       console.error('Error deleting client:', error);
