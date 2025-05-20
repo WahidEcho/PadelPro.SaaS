@@ -1215,7 +1215,7 @@ const FinancialsPage = () => {
                   className="max-w-sm"
                 />
               <div className="flex gap-2">
-                <Button variant="outline" className="mr-2">
+                <Button variant="outline" className="mr-2" onClick={() => setIsCategoryManagerOpen(true)}>
                   {t("manage_categories")}
                 </Button>
                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
