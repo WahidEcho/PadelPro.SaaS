@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { useLanguage } from "@/contexts/language-context";
+import { useAuth } from "@/hooks/use-auth";
 
 const CourtsPage = () => {
   const [courts, setCourts] = useState<CourtsWithGroup[]>([]);
@@ -79,6 +80,7 @@ const CourtsPage = () => {
   const [groupManagerCourts, setGroupManagerCourts] = useState<{ [groupId: string]: string[] }>({});
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const { t } = useLanguage();
+  const { isAdmin, isManager } = useAuth();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -298,10 +300,12 @@ const CourtsPage = () => {
             </Button>
           <Dialog open={courtDialogOpen} onOpenChange={setCourtDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("add_court")}
-              </Button>
+              {isAdmin && (
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("add_court")}
+                </Button>
+              )}
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -347,20 +351,24 @@ const CourtsPage = () => {
                   }}>
                   {t("cancel")}
                 </Button>
-                <Button onClick={handleAddCourt} disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {editingCourt ? t("update_court") : t("create_court")}
+                {isAdmin && (
+                  <Button onClick={handleAddCourt} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {editingCourt ? t("update_court") : t("create_court")}
                   </Button>
+                )}
                 </DialogFooter>
               </DialogContent>
             </Dialog>
             {/* Add Group Dialog */}
             <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="ml-2">
-                  <Plus className="mr-2 h-4 w-4" />
-                  {t("add_group")}
-                </Button>
+                {isAdmin && (
+                  <Button variant="outline" className="ml-2">
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t("add_group")}
+                  </Button>
+                )}
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -384,48 +392,50 @@ const CourtsPage = () => {
                   <Button variant="outline" onClick={() => setGroupDialogOpen(false)}>
                     {t("cancel")}
                   </Button>
-                  <Button
-                    onClick={async () => {
-                      if (!newGroupName) {
-                        toast({
-                          title: t("error"),
-                          description: t("group_name_required"),
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      setIsSubmitting(true);
-                      try {
-                        const { error } = await supabase
-                          .from('court_groups')
-                          .insert([{ name: newGroupName }]);
-                        if (error) throw error;
-                        toast({
-                          title: t("success"),
-                          description: t("group_added_successfully")
-                        });
-                        // Refresh groups
-                        const { data: groupsData, error: groupsError } = await supabase
-                          .from('court_groups')
-                          .select('*');
-                        if (!groupsError) setCourtGroups(groupsData || []);
-                        setNewGroupName('');
-                        setGroupDialogOpen(false);
-                      } catch (error: any) {
-                        toast({
-                          title: t("error"),
-                          description: error.message || t("failed_to_add_group"),
-                          variant: "destructive",
-                        });
-                      } finally {
-                        setIsSubmitting(false);
-                      }
-                    }}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {t("add_group")}
-                </Button>
+                  {isAdmin && (
+                    <Button
+                      onClick={async () => {
+                        if (!newGroupName) {
+                          toast({
+                            title: t("error"),
+                            description: t("group_name_required"),
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+                        setIsSubmitting(true);
+                        try {
+                          const { error } = await supabase
+                            .from('court_groups')
+                            .insert([{ name: newGroupName }]);
+                          if (error) throw error;
+                          toast({
+                            title: t("success"),
+                            description: t("group_added_successfully")
+                          });
+                          // Refresh groups
+                          const { data: groupsData, error: groupsError } = await supabase
+                            .from('court_groups')
+                            .select('*');
+                          if (!groupsError) setCourtGroups(groupsData || []);
+                          setNewGroupName('');
+                          setGroupDialogOpen(false);
+                        } catch (error: any) {
+                          toast({
+                            title: t("error"),
+                            description: error.message || t("failed_to_add_group"),
+                            variant: "destructive",
+                          });
+                        } finally {
+                          setIsSubmitting(false);
+                        }
+                      }}
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      {t("add_group")}
+                  </Button>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -481,13 +491,17 @@ const CourtsPage = () => {
                     return (
                       <Card key={group.id} className="shadow-lg relative">
                         <div className="absolute top-4 right-4 flex gap-2 z-10">
-                          <Button size="icon" variant="ghost" onClick={() => { setGroupToEdit(group); setEditGroupName(group.name); setGroupEditDialogOpen(true); }}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={() => { setGroupToDelete(group); setGroupDeleteDialogOpen(true); }}>
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                  </div>
+                          {isAdmin && (
+                            <Button size="icon" variant="ghost" onClick={() => { setGroupToEdit(group); setEditGroupName(group.name); setGroupEditDialogOpen(true); }}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button size="icon" variant="ghost" onClick={() => { setGroupToDelete(group); setGroupDeleteDialogOpen(true); }}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          )}
+                        </div>
                         <CardHeader>
                           <CardTitle>{group.name}</CardTitle>
                         </CardHeader>
@@ -503,10 +517,10 @@ const CourtsPage = () => {
                                   .slice(0, 5);
                                 return (
                                   <Card key={court.id} className="bg-muted/50 dark:bg-gray-800">
-                      <CardHeader>
+                                    <CardHeader>
                                       <CardTitle className="text-lg">{court.name}</CardTitle>
-                      </CardHeader>
-                      <CardContent>
+                                    </CardHeader>
+                                    <CardContent>
                                       {last5Reservations.length === 0 ? (
                                         <div className="text-muted-foreground text-sm">{t("no_reservations_found")}</div>
                                       ) : (
@@ -527,20 +541,24 @@ const CourtsPage = () => {
                                           </tbody>
                                         </table>
                                       )}
-                      </CardContent>
+                                    </CardContent>
                                     <CardFooter className="flex justify-end gap-2 border-t pt-2 mt-2">
-                                      <Button size="icon" variant="ghost" onClick={() => handleEditCourt(court)}>
-                                        <Pencil className="h-4 w-4" />
-                        </Button>
-                                      <Button size="icon" variant="ghost" onClick={() => { setCourtToDelete(court.id); setDeleteDialogOpen(true); }}>
-                                        <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
-                      </CardFooter>
-                    </Card>
+                                      {isAdmin && (
+                                        <Button size="icon" variant="ghost" onClick={() => handleEditCourt(court)}>
+                                          <Pencil className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                      {isAdmin && (
+                                        <Button size="icon" variant="ghost" onClick={() => { setCourtToDelete(court.id); setDeleteDialogOpen(true); }}>
+                                          <Trash2 className="h-4 w-4 text-red-500" />
+                                        </Button>
+                                      )}
+                                    </CardFooter>
+                                  </Card>
                                 );
                               })}
                             </div>
-                )}
+                          )}
                         </CardContent>
                       </Card>
                     );
@@ -576,17 +594,19 @@ const CourtsPage = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setGroupEditDialogOpen(false)}>{t("cancel")}</Button>
-            <Button onClick={async () => {
-              if (!editGroupName.trim() || !groupToEdit) return;
-              try {
-                const { error } = await supabase.from('court_groups').update({ name: editGroupName.trim() }).eq('id', groupToEdit.id);
-                if (error) throw error;
-                setCourtGroups(courtGroups.map(g => g.id === groupToEdit.id ? { ...g, name: editGroupName.trim() } : g));
-                setGroupEditDialogOpen(false);
-              } catch (error) {
-                // handle error
-              }
-            }}>{t("save")}</Button>
+            {isAdmin && (
+              <Button onClick={async () => {
+                if (!editGroupName.trim() || !groupToEdit) return;
+                try {
+                  const { error } = await supabase.from('court_groups').update({ name: editGroupName.trim() }).eq('id', groupToEdit.id);
+                  if (error) throw error;
+                  setCourtGroups(courtGroups.map(g => g.id === groupToEdit.id ? { ...g, name: editGroupName.trim() } : g));
+                  setGroupEditDialogOpen(false);
+                } catch (error) {
+                  // handle error
+                }
+              }}>{t("save")}</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -599,17 +619,19 @@ const CourtsPage = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setGroupDeleteDialogOpen(false)}>{t("cancel")}</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
-              if (!groupToDelete) return;
-              try {
-                const { error } = await supabase.from('court_groups').delete().eq('id', groupToDelete.id);
-                if (error) throw error;
-                setCourtGroups(courtGroups.filter(g => g.id !== groupToDelete.id));
-                setGroupDeleteDialogOpen(false);
-              } catch (error) {
-                // handle error
-              }
-            }}>{t("delete")}</AlertDialogAction>
+            {isAdmin && (
+              <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
+                if (!groupToDelete) return;
+                try {
+                  const { error } = await supabase.from('court_groups').delete().eq('id', groupToDelete.id);
+                  if (error) throw error;
+                  setCourtGroups(courtGroups.filter(g => g.id !== groupToDelete.id));
+                  setGroupDeleteDialogOpen(false);
+                } catch (error) {
+                  // handle error
+                }
+              }}>{t("delete")}</AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -640,23 +662,29 @@ const CourtsPage = () => {
                       )}
                       <div className="flex gap-2">
                         {groupManagerEditId === group.id ? (
-                          <Button size="sm" onClick={async () => {
-                            if (!groupManagerEditName.trim()) return;
-                            await supabase.from('court_groups').update({ name: groupManagerEditName.trim() }).eq('id', group.id);
-                            setCourtGroups(courtGroups.map(g => g.id === group.id ? { ...g, name: groupManagerEditName.trim() } : g));
-                            setGroupManagerEditId(null);
-                          }}>{t("save")}</Button>
+                          isAdmin && (
+                            <Button size="sm" onClick={async () => {
+                              if (!groupManagerEditName.trim()) return;
+                              await supabase.from('court_groups').update({ name: groupManagerEditName.trim() }).eq('id', group.id);
+                              setCourtGroups(courtGroups.map(g => g.id === group.id ? { ...g, name: groupManagerEditName.trim() } : g));
+                              setGroupManagerEditId(null);
+                            }}>{t("save")}</Button>
+                          )
                         ) : (
-                          <Button size="icon" variant="ghost" onClick={() => { setGroupManagerEditId(group.id); setGroupManagerEditName(group.name); }}>
-                            <Pencil className="h-4 w-4" />
+                          isAdmin && (
+                            <Button size="icon" variant="ghost" onClick={() => { setGroupManagerEditId(group.id); setGroupManagerEditName(group.name); }}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )
+                        )}
+                        {isAdmin && (
+                          <Button size="icon" variant="ghost" onClick={async () => {
+                            await supabase.from('court_groups').delete().eq('id', group.id);
+                            setCourtGroups(courtGroups.filter(g => g.id !== group.id));
+                          }}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         )}
-                        <Button size="icon" variant="ghost" onClick={async () => {
-                          await supabase.from('court_groups').delete().eq('id', group.id);
-                          setCourtGroups(courtGroups.filter(g => g.id !== group.id));
-                        }}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
                       </div>
                     </div>
                     <div>
@@ -700,12 +728,14 @@ const CourtsPage = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteDialogOpen(false)}>{t("cancel")}</AlertDialogCancel>
-            <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
-              if (!courtToDelete) return;
-              await handleDeleteCourt(courtToDelete);
-              setDeleteDialogOpen(false);
-              setCourtToDelete(null);
-            }}>{t("delete")}</AlertDialogAction>
+            {isAdmin && (
+              <AlertDialogAction className="bg-red-500 hover:bg-red-600" onClick={async () => {
+                if (!courtToDelete) return;
+                await handleDeleteCourt(courtToDelete);
+                setDeleteDialogOpen(false);
+                setCourtToDelete(null);
+              }}>{t("delete")}</AlertDialogAction>
+            )}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

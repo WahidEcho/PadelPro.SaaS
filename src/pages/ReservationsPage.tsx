@@ -89,7 +89,7 @@ const ReservationsPage = () => {
   const { toast } = useToast();
   const { fetchTransactions } = useTransactionsData();
   const { fetchExpenses } = useExpensesData();
-  const { isAdmin, isEmployee, user } = useAuth();
+  const { isAdmin, isManager, isEmployee, user } = useAuth();
   const { t, language } = useLanguage();
 
   // Fetch data from Supabase
@@ -279,8 +279,9 @@ const ReservationsPage = () => {
         card,
         wallet,
         amount: totalAmount,
-        created_by_role: isAdmin ? "admin" : "employee",
-        employee_name: isEmployee && !isAdmin && user ? user.user_metadata?.full_name || user.email : null,
+        payment_method: 'cash', // Dummy value to satisfy type requirement
+        created_by_role: isAdmin ? "admin" : isManager ? "manager" : "employee",
+        employee_name: (isEmployee || isManager) && !isAdmin && user ? user.user_metadata?.full_name || user.email : null,
       };
       const { data: reservationData, error: reservationError } = await supabase
         .from('reservations')
@@ -420,174 +421,176 @@ const ReservationsPage = () => {
               {t("manage_padel_reservations")}
             </p>
           </div>
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("new_reservation")}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>{t("add_reservation")}</DialogTitle>
-                <DialogDescription>
-                  {t("create_new_reservation")}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div>
-                  <Label htmlFor="date">{t("date")}</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !date && "text-muted-foreground"
-                        )}
+          {(isAdmin || isManager || isEmployee) && (
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("new_reservation")}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>{t("add_reservation")}</DialogTitle>
+                  <DialogDescription>
+                    {t("create_new_reservation")}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div>
+                    <Label htmlFor="date">{t("date")}</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {date ? format(date, "PPP") : <span>{t("pick_a_date")}</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={date}
+                          onSelect={setDate}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="court">{t("court")}</Label>
+                    <Select 
+                      value={selectedCourt} 
+                      onValueChange={(value) => setSelectedCourt(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("select_court")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {courts.map((court) => (
+                          <SelectItem key={court.id} value={court.id}>
+                            {court.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="time-start">{t("start_time")}</Label>
+                      <Select 
+                        value={timeStart} 
+                        onValueChange={handleTimeStartChange}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date ? format(date, "PPP") : <span>{t("pick_a_date")}</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={setDate}
-                        initialFocus
-                        className={cn("p-3 pointer-events-auto")}
+                        <SelectTrigger id="time-start">
+                          <SelectValue placeholder={t("start_time")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeSlots.map((slot) => (
+                            <SelectItem key={`start-${slot.value}`} value={slot.value}>
+                              {slot.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="time-end">{t("end_time")}</Label>
+                      <Select 
+                        value={timeEnd} 
+                        onValueChange={(value) => setTimeEnd(value)}
+                      >
+                        <SelectTrigger id="time-end">
+                          <SelectValue placeholder={t("end_time")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timeSlots.map((slot) => (
+                            <SelectItem key={`end-${slot.value}`} value={slot.value}>
+                              {slot.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="client">{t("client")}</Label>
+                    <Select 
+                      value={selectedClient} 
+                      onValueChange={(value) => setSelectedClient(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("select_client")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clients.map((client) => (
+                          <SelectItem key={client.id} value={client.id}>
+                            {client.name}{client.phone ? ` (${client.phone})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="cash">{t("amount_of_cash")}</Label>
+                      <Input
+                        id="cash"
+                        type="number"
+                        value={cash}
+                        onChange={e => setCash(Number(e.target.value))}
+                        min={0}
                       />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div>
-                  <Label htmlFor="court">{t("court")}</Label>
-                  <Select 
-                    value={selectedCourt} 
-                    onValueChange={(value) => setSelectedCourt(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("select_court")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {courts.map((court) => (
-                        <SelectItem key={court.id} value={court.id}>
-                          {court.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="time-start">{t("start_time")}</Label>
-                    <Select 
-                      value={timeStart} 
-                      onValueChange={handleTimeStartChange}
-                    >
-                      <SelectTrigger id="time-start">
-                        <SelectValue placeholder={t("start_time")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {timeSlots.map((slot) => (
-                          <SelectItem key={`start-${slot.value}`} value={slot.value}>
-                            {slot.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="card">{t("amount_of_card")}</Label>
+                      <Input
+                        id="card"
+                        type="number"
+                        value={card}
+                        onChange={e => setCard(Number(e.target.value))}
+                        min={0}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="wallet">{t("amount_of_wallet")}</Label>
+                      <Input
+                        id="wallet"
+                        type="number"
+                        value={wallet}
+                        onChange={e => setWallet(Number(e.target.value))}
+                        min={0}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="time-end">{t("end_time")}</Label>
-                    <Select 
-                      value={timeEnd} 
-                      onValueChange={(value) => setTimeEnd(value)}
-                    >
-                      <SelectTrigger id="time-end">
-                        <SelectValue placeholder={t("end_time")} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {timeSlots.map((slot) => (
-                          <SelectItem key={`end-${slot.value}`} value={slot.value}>
-                            {slot.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="text-right font-semibold text-lg mt-2">
+                    {t("total")}: £{(Number(cash) || 0) + (Number(card) || 0) + (Number(wallet) || 0)}
                   </div>
                 </div>
-
-                <div>
-                  <Label htmlFor="client">{t("client")}</Label>
-                  <Select 
-                    value={selectedClient} 
-                    onValueChange={(value) => setSelectedClient(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={t("select_client")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>
-                          {client.name}{client.phone ? ` (${client.phone})` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="cash">{t("amount_of_cash")}</Label>
-                    <Input
-                      id="cash"
-                      type="number"
-                      value={cash}
-                      onChange={e => setCash(Number(e.target.value))}
-                      min={0}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="card">{t("amount_of_card")}</Label>
-                    <Input
-                      id="card"
-                      type="number"
-                      value={card}
-                      onChange={e => setCard(Number(e.target.value))}
-                      min={0}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="wallet">{t("amount_of_wallet")}</Label>
-                    <Input
-                      id="wallet"
-                      type="number"
-                      value={wallet}
-                      onChange={e => setWallet(Number(e.target.value))}
-                      min={0}
-                    />
-                  </div>
-                </div>
-                <div className="text-right font-semibold text-lg mt-2">
-                  {t("total")}: £{(Number(cash) || 0) + (Number(card) || 0) + (Number(wallet) || 0)}
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>
-                  {t("cancel")}
-                </Button>
-                <Button onClick={handleAddReservation} disabled={isSubmitting}>
-                  {isSubmitting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  {t("add_reservation")}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setOpen(false)} disabled={isSubmitting}>
+                    {t("cancel")}
+                  </Button>
+                  <Button onClick={handleAddReservation} disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    {t("add_reservation")}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         <Card>
@@ -745,6 +748,8 @@ const ReservationsPage = () => {
                                   <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
                                     {res.created_by_role === "admin"
                                       ? "Admin"
+                                      : res.created_by_role === "manager"
+                                      ? res.employee_name || "-"
                                       : res.employee_name || "-"}
                                   </td>
                                 )}

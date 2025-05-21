@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
@@ -11,6 +10,7 @@ type AuthContextType = {
   loading: boolean;
   isAdmin: boolean;
   isEmployee: boolean;
+  isManager: boolean;
   signOut: () => Promise<void>;
   updateProfile: (data: { full_name?: string }) => Promise<{ success: boolean; error: string | null }>;
   updatePassword: (password: string) => Promise<{ success: boolean; error: string | null }>;
@@ -23,6 +23,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isAdmin: false,
   isEmployee: false,
+  isManager: false,
   signOut: async () => {},
   updateProfile: async () => ({ success: false, error: 'Not implemented' }),
   updatePassword: async () => ({ success: false, error: 'Not implemented' }),
@@ -35,6 +36,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [userIsAdmin, setUserIsAdmin] = useState(false);
   const [userIsEmployee, setUserIsEmployee] = useState(false);
+  const [userIsManager, setUserIsManager] = useState(false);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -49,8 +51,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             try {
               const adminStatus = await hasRole(newSession.user.id, 'admin');
               const employeeStatus = await hasRole(newSession.user.id, 'employee');
+              const managerStatus = await hasRole(newSession.user.id, 'manager');
               setUserIsAdmin(adminStatus);
               setUserIsEmployee(employeeStatus);
+              setUserIsManager(managerStatus);
             } catch (error) {
               console.error('Error checking roles:', error);
             } finally {
@@ -60,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           setUserIsAdmin(false);
           setUserIsEmployee(false);
+          setUserIsManager(false);
           setLoading(false);
         }
       }
@@ -75,8 +80,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (currentSession?.user) {
           const adminStatus = await hasRole(currentSession.user.id, 'admin');
           const employeeStatus = await hasRole(currentSession.user.id, 'employee');
+          const managerStatus = await hasRole(currentSession.user.id, 'manager');
           setUserIsAdmin(adminStatus);
           setUserIsEmployee(employeeStatus);
+          setUserIsManager(managerStatus);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -189,6 +196,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loading,
         isAdmin: userIsAdmin,
         isEmployee: userIsEmployee,
+        isManager: userIsManager,
         signOut,
         updateProfile,
         updatePassword,

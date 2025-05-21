@@ -15,7 +15,7 @@ import { Moon, Sun } from "lucide-react";
 export function DashboardHeader() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, signOut, isAdmin, isEmployee } = useAuth();
+  const { user, signOut, isAdmin, isEmployee, isManager } = useAuth();
   const { language, toggleLanguage, t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(user?.user_metadata?.full_name || "");
@@ -59,42 +59,52 @@ export function DashboardHeader() {
       title: t("dashboard"),
       icon: Home,
       path: "/",
-      visible: isAdmin, // Only visible to admin users
+      visible: isAdmin || isManager,
     },
     {
       title: t("courts"),
       icon: ClipboardList,
       path: "/courts",
-      visible: isAdmin, // Only visible to admin users
+      visible: isAdmin || isManager,
     },
     {
       title: t("reservations"),
       icon: Calendar,
       path: "/reservations",
-      visible: true, // Visible to all authenticated users
+      visible: isAdmin || isManager || isEmployee,
     },
     {
       title: t("clients"),
       icon: Users,
       path: "/clients",
-      visible: isAdmin, // Only visible to admin users
+      visible: isAdmin || isManager,
     },
     {
       title: t("financials"),
       icon: DollarSign,
       path: "/financials",
-      visible: isAdmin, // Only visible to admin users
+      visible: isAdmin || isManager,
     },
     {
       title: t("settings"),
       icon: Settings,
       path: "/settings",
-      visible: isAdmin, // Only visible to admin users
+      visible: isAdmin,
     },
   ];
-  const visibleMenuItems = isEmployee && !isAdmin
-    ? menuItems.filter(item => item.title === t("reservations"))
-    : menuItems.filter(item => item.visible);
+
+  let visibleMenuItems;
+  if (isAdmin) {
+    visibleMenuItems = menuItems.filter(item => item.visible);
+  } else if (isManager) {
+    visibleMenuItems = menuItems.filter(item =>
+      [t("dashboard"), t("courts"), t("reservations"), t("clients"), t("financials")].includes(item.title)
+    );
+  } else if (isEmployee) {
+    visibleMenuItems = menuItems.filter(item => item.title === t("reservations"));
+  } else {
+    visibleMenuItems = [];
+  }
 
   return (
     <header className="fixed top-0 left-0 w-full z-50 bg-white dark:bg-gray-800 shadow rounded-b-2xl flex flex-col items-center transition-colors duration-300">

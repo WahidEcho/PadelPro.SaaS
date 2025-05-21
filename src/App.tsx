@@ -32,12 +32,12 @@ const LoadingScreen = () => (
 // Protected route component that checks for admin or employee role based on allowedRoles
 const ProtectedRoute = ({ 
   children, 
-  allowedRoles = ['admin', 'employee'] 
+  allowedRoles = ['admin', 'employee', 'manager'] 
 }: { 
   children: React.ReactNode;
-  allowedRoles?: Array<'admin' | 'employee'>;
+  allowedRoles?: Array<'admin' | 'employee' | 'manager'>;
 }) => {
-  const { user, loading, isAdmin, isEmployee } = useAuth();
+  const { user, loading, isAdmin, isEmployee, isManager } = useAuth();
   const location = useLocation();
   
   // Show loading state while checking auth
@@ -53,15 +53,16 @@ const ProtectedRoute = ({
   // Check if user has allowed role
   const hasAllowedRole = (
     (allowedRoles.includes('admin') && isAdmin) || 
-    (allowedRoles.includes('employee') && isEmployee)
+    (allowedRoles.includes('employee') && isEmployee) ||
+    (allowedRoles.includes('manager') && isManager)
   );
   
   // If the user doesn't have an allowed role, redirect to a restricted page
   if (!hasAllowedRole) {
     return (
       <div className="flex flex-col items-center justify-center h-screen">
-        <h1 className="text-2xl font-bold mb-4">Access Granted</h1>
-        <p className="mb-4">Welcome to LEVELS FC PadelPro Manager.</p>
+        <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+        <p className="mb-4">You don't have permission to access this page.</p>
         <Navigate to="/" replace />
       </div>
     );
@@ -94,70 +95,70 @@ const App = () => {
         <AuthProvider>
           <LanguageProvider>
             <RTLWrapper>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
                   <EmployeeRouteGuard>
-              <Routes>
-                {/* Public routes */}
-                <Route 
-                  path="/login" 
-                  element={
-                    <Suspense fallback={<LoadingScreen />}>
-                      <LoginPage />
-                    </Suspense>
-                  } 
-                />
-                <Route 
-                  path="/admin-setup" 
-                  element={
-                    <Suspense fallback={<LoadingScreen />}>
-                      <AdminSetup />
-                    </Suspense>
-                  } 
-                />
-                
-                {/* Protected routes - accessible by both admin and employee */}
-                <Route path="/" element={
-                  <ProtectedRoute allowedRoles={['admin', 'employee']}>
-                    <Index />
-                  </ProtectedRoute>
-                } />
-                <Route path="/courts" element={
-                  <ProtectedRoute allowedRoles={['admin', 'employee']}>
-                    <CourtsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/reservations" element={
-                  <ProtectedRoute allowedRoles={['admin', 'employee']}>
-                    <ReservationsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/clients" element={
-                  <ProtectedRoute allowedRoles={['admin', 'employee']}>
-                    <ClientsPage />
-                  </ProtectedRoute>
-                } />
-                
-                {/* Admin-only routes */}
-                <Route path="/financials" element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <FinancialsPage />
-                  </ProtectedRoute>
-                } />
-                <Route path="/settings" element={
-                  <ProtectedRoute allowedRoles={['admin']}>
-                    <SettingsPage />
-                  </ProtectedRoute>
-                } />
-                
-                {/* Catch-all route */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
+                    <Routes>
+                      {/* Public routes */}
+                      <Route 
+                        path="/login" 
+                        element={
+                          <Suspense fallback={<LoadingScreen />}>
+                            <LoginPage />
+                          </Suspense>
+                        } 
+                      />
+                      <Route 
+                        path="/admin-setup" 
+                        element={
+                          <Suspense fallback={<LoadingScreen />}>
+                            <AdminSetup />
+                          </Suspense>
+                        } 
+                      />
+                      
+                      {/* Protected routes - accessible by admin, employee, and manager */}
+                      <Route path="/" element={
+                        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                          <Index />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/courts" element={
+                        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                          <CourtsPage />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/reservations" element={
+                        <ProtectedRoute allowedRoles={['admin', 'manager', 'employee']}>
+                          <ReservationsPage />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/clients" element={
+                        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                          <ClientsPage />
+                        </ProtectedRoute>
+                      } />
+                      
+                      {/* Admin-only routes */}
+                      <Route path="/financials" element={
+                        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                          <FinancialsPage />
+                        </ProtectedRoute>
+                      } />
+                      <Route path="/settings" element={
+                        <ProtectedRoute allowedRoles={['admin']}>
+                          <SettingsPage />
+                        </ProtectedRoute>
+                      } />
+                      
+                      {/* Catch-all route */}
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
                   </EmployeeRouteGuard>
-            </BrowserRouter>
-          </TooltipProvider>
+                </BrowserRouter>
+              </TooltipProvider>
             </RTLWrapper>
           </LanguageProvider>
         </AuthProvider>

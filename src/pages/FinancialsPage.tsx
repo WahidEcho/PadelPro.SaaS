@@ -68,6 +68,7 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Court, Client } from "@/types/supabase";
 import { useLanguage } from "@/contexts/language-context";
+import { useAuth } from "@/hooks/use-auth";
 
 const expenseFormSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters" }),
@@ -734,6 +735,8 @@ const FinancialsPage = () => {
   const [pendingDeleteReservation, setPendingDeleteReservation] = useState<any>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
+  const { isAdmin, isManager } = useAuth();
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -1142,29 +1145,33 @@ const FinancialsPage = () => {
                           <TableCell className="text-right font-medium text-green-600">&#163;{row.card ?? 0}</TableCell>
                           <TableCell className="text-right font-medium text-green-600">&#163;{row.wallet ?? 0}</TableCell>
                           <TableCell className="p-4 flex gap-2">
-                            <Button size="icon" variant="ghost" onClick={() => {
-                              // Set all edit states from the reservation row
-                                setSelectedReservation(row);
-                              setReservationDate(new Date(row.date));
-                              setSelectedCourt(row.courts?.id || "");
-                              setTimeStart(row.time_start || "09:00");
-                              setTimeEnd(row.time_end || "10:00");
-                              setSelectedClient(row.clients?.id || "");
-                              setClientSearch(row.clients?.name || "");
-                              setCash(row.cash ?? 0);
-                              setCard(row.card ?? 0);
-                              setWallet(row.wallet ?? 0);
-                                setEditReservationDialogOpen(true);
-                            }}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button size="icon" variant="ghost" onClick={() => {
-                              if (!row.id) return;
-                              setPendingDeleteReservation(row);
-                              setShowDeleteDialog(true);
-                            }}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
+                            {isAdmin && (
+                              <Button size="icon" variant="ghost" onClick={() => {
+                                // Set all edit states from the reservation row
+                                  setSelectedReservation(row);
+                                setReservationDate(new Date(row.date));
+                                setSelectedCourt(row.courts?.id || "");
+                                setTimeStart(row.time_start || "09:00");
+                                setTimeEnd(row.time_end || "10:00");
+                                setSelectedClient(row.clients?.id || "");
+                                setClientSearch(row.clients?.name || "");
+                                setCash(row.cash ?? 0);
+                                setCard(row.card ?? 0);
+                                setWallet(row.wallet ?? 0);
+                                  setEditReservationDialogOpen(true);
+                              }}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {isAdmin && (
+                              <Button size="icon" variant="ghost" onClick={() => {
+                                if (!row.id) return;
+                                setPendingDeleteReservation(row);
+                                setShowDeleteDialog(true);
+                              }}>
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -1279,7 +1286,7 @@ const FinancialsPage = () => {
                                   <div className="flex gap-2">
                                     <FormControl>
                                       <select
-                                        className="border rounded px-2 py-1"
+                                        className="border border-gray-600 rounded px-2 py-1 bg-gray-800 text-white focus:ring-2 focus:ring-padel-primary focus:outline-none"
                                         value={field.value || ""}
                                         onChange={field.onChange}
                                       >
@@ -1350,20 +1357,24 @@ const FinancialsPage = () => {
                           -&#163;{Math.round(parseFloat(expense.amount.toString()))}
                         </TableCell>
                         <TableCell>
-                          <Button size="icon" variant="ghost" onClick={() => {
-                            setEditExpense(expense);
-                            form.setValue('title', expense.title);
-                            form.setValue('amount', expense.amount);
-                            form.setValue('date', expense.date);
-                            form.setValue('category_id', expense.category_id || "");
-                            form.setValue('notes', expense.notes || "");
-                            setEditExpenseDialogOpen(true);
-                          }}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button size="icon" variant="ghost" onClick={() => { setDeleteExpenseId(expense.id); setDeleteExpenseDialogOpen(true); }}>
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
+                          {isAdmin && (
+                            <Button size="icon" variant="ghost" onClick={() => {
+                              setEditExpense(expense);
+                              form.setValue('title', expense.title);
+                              form.setValue('amount', expense.amount);
+                              form.setValue('date', expense.date);
+                              form.setValue('category_id', expense.category_id || "");
+                              form.setValue('notes', expense.notes || "");
+                              setEditExpenseDialogOpen(true);
+                            }}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button size="icon" variant="ghost" onClick={() => { setDeleteExpenseId(expense.id); setDeleteExpenseDialogOpen(true); }}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -1622,41 +1633,43 @@ const FinancialsPage = () => {
             {categories.length === 0 ? (
               <div className="text-muted-foreground">No categories found.</div>
             ) : (
-              categories.map(cat => (
-                <div key={cat.id} className="flex items-center gap-2">
-                  {editCategoryId === cat.id ? (
-                    <>
-                      <Input
-                        value={editCategoryName}
-                        onChange={e => setEditCategoryName(e.target.value)}
-                        className="w-1/2"
-                      />
-                      <Button size="sm" onClick={async () => {
-                        if (!editCategoryName.trim()) return;
-                        await supabase.from('expense_categories').update({ name: editCategoryName.trim() }).eq('id', cat.id);
-                        await fetchCategories();
-                        setEditCategoryId(null);
-                      }}>Save</Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditCategoryId(null)}>Cancel</Button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex-1">{cat.name}</span>
-                      <Button size="icon" variant="ghost" onClick={() => { setEditCategoryId(cat.id); setEditCategoryName(cat.name); }}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" onClick={async () => {
-                        if (window.confirm('Delete this category?')) {
-                          await supabase.from('expense_categories').delete().eq('id', cat.id);
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {categories.map((cat, idx) => (
+                  <div key={cat.id} className="flex items-center gap-2">
+                    {editCategoryId === cat.id ? (
+                      <>
+                        <Input
+                          value={editCategoryName}
+                          onChange={e => setEditCategoryName(e.target.value)}
+                          className="w-1/2"
+                        />
+                        <Button size="sm" onClick={async () => {
+                          if (!editCategoryName.trim()) return;
+                          await supabase.from('expense_categories').update({ name: editCategoryName.trim() }).eq('id', cat.id);
                           await fetchCategories();
-                        }
-                      }}>
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              ))
+                          setEditCategoryId(null);
+                        }}>Save</Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditCategoryId(null)}>Cancel</Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex-1">{cat.name}</span>
+                        <Button size="icon" variant="ghost" onClick={() => { setEditCategoryId(cat.id); setEditCategoryName(cat.name); }}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={async () => {
+                          if (window.confirm('Delete this category?')) {
+                            await supabase.from('expense_categories').delete().eq('id', cat.id);
+                            await fetchCategories();
+                          }
+                        }}>
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
             <div className="flex gap-2 mt-4">
               <Input

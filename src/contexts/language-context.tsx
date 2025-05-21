@@ -64,6 +64,7 @@ const translations = {
     unknown_client: "Unknown Client",
     unknown_court: "Unknown Court",
     empty_dash: "-",
+    no_name_set: "No name set",
     
     // Messages
     loading: "Loading...",
@@ -310,6 +311,7 @@ const translations = {
     unknown_client: "عميل غير معروف",
     unknown_court: "ملعب غير معروف",
     empty_dash: "-",
+    no_name_set: "لم يتم تعيين اسم",
     
     // Messages
     loading: "جاري التحميل...",

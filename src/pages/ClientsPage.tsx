@@ -33,6 +33,7 @@ import { z } from "zod";
 import { useClientsData } from "@/hooks/use-clients-data";
 import { Client } from "@/types/supabase";
 import { useLanguage } from "@/contexts/language-context";
+import { useAuth } from "@/hooks/use-auth";
 
 const clientFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters" }),
@@ -48,6 +49,7 @@ const ClientsPage = () => {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const { toast } = useToast();
   const { t, language } = useLanguage();
+  const { isAdmin, isManager } = useAuth();
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientFormSchema),
@@ -143,10 +145,12 @@ const ClientsPage = () => {
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("add_client")}
-              </Button>
+              {(isAdmin || isManager) && (
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("add_client")}
+                </Button>
+              )}
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -229,25 +233,27 @@ const ClientsPage = () => {
                     <TableCell className={`${language === 'ar' ? 'text-right' : 'text-left'}`}>{client.phone || '-'}</TableCell>
                     <TableCell className={`${language === 'ar' ? 'text-right' : 'text-left'}`}>{new Date(client.created_at).toLocaleDateString()}</TableCell>
                     <TableCell className={`font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>
-                      <div className={`flex gap-2 ${language === 'ar' ? 'justify-end' : 'justify-start'}`}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(client)}
-                        >
-                          <Edit className="h-4 w-4" />
-                          <span className="sr-only">{t("edit")}</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-500 hover:text-red-600"
-                          onClick={() => handleDelete(client.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">{t("delete")}</span>
-                        </Button>
-                      </div>
+                      {isAdmin && (
+                        <div className={`flex gap-2 ${language === 'ar' ? 'justify-end' : 'justify-start'}`}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(client)}
+                          >
+                            <Edit className="h-4 w-4" />
+                            <span className="sr-only">{t("edit")}</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:text-red-600"
+                            onClick={() => handleDelete(client.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            <span className="sr-only">{t("delete")}</span>
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
