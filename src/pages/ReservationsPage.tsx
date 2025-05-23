@@ -580,7 +580,7 @@ const ReservationsPage = () => {
                     </div>
                   </div>
                   <div className="text-right font-semibold text-lg mt-2">
-                    {t("total")}: £{(Number(cash) || 0) + (Number(card) || 0) + (Number(wallet) || 0)}
+                    {t("total")}: {(Number(cash) || 0) + (Number(card) || 0) + (Number(wallet) || 0)}
                   </div>
                 </div>
                 <DialogFooter>
@@ -725,10 +725,10 @@ const ReservationsPage = () => {
                           <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("court")}</th>
                           <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("date")}</th>
                           <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("time")}</th>
-                          <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("amount")} (£)</th>
-                          <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("cash")} (£)</th>
-                          <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("card")} (£)</th>
-                          <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("wallet")} (£)</th>
+                          <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("amount")}</th>
+                          <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("cash")}</th>
+                          <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("card")}</th>
+                          <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("wallet")}</th>
                           <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("status")}</th>
                           <th className={`p-4 font-medium ${language === 'ar' ? 'text-right' : 'text-left'}`}>{t("actions")}</th>
                         </tr>
@@ -767,10 +767,10 @@ const ReservationsPage = () => {
                                 <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
                                   {formatTime12H(res.time_start)} - {formatTime12H(res.time_end)}
                                 </td>
-                                <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>£{(res.cash ?? 0) + (res.card ?? 0) + (res.wallet ?? 0)}</td>
-                                <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>£{res.cash ?? 0}</td>
-                                <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>£{res.card ?? 0}</td>
-                                <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>£{res.wallet ?? 0}</td>
+                                <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>{(res.cash ?? 0) + (res.card ?? 0) + (res.wallet ?? 0)}</td>
+                                <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>{res.cash ?? 0}</td>
+                                <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>{res.card ?? 0}</td>
+                                <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>{res.wallet ?? 0}</td>
                                 <td className={`p-4 ${language === 'ar' ? 'text-right' : 'text-left'}`}>
                                   <span className={`${statusColor} text-xs font-medium px-2 py-1 rounded-full`}>
                                     {status === "now"

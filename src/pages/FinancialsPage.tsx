@@ -855,7 +855,7 @@ const FinancialsPage = () => {
                           </div>
                           <div className="text-right">
                             <div className="font-medium text-green-600">
-                              &#163;{Math.round(parseFloat(transaction.amount.toString()))}
+                              {Math.round(parseFloat(transaction.amount.toString()))}
                             </div>
                           </div>
                         </div>
@@ -887,7 +887,7 @@ const FinancialsPage = () => {
                           </div>
                           <div className="text-right">
                             <div className="font-medium text-red-500">
-                              -&#163;{Math.round(parseFloat(expense.amount.toString()))}
+                              -{Math.round(parseFloat(expense.amount.toString()))}
                             </div>
                           </div>
                         </div>
@@ -1126,10 +1126,10 @@ const FinancialsPage = () => {
                     <TableHead>{t("court")}</TableHead>
                     <TableHead>{t("date")}</TableHead>
                     <TableHead>{t("group")}</TableHead>
-                    <TableHead className="text-right">{t("amount")} (&pound;)</TableHead>
-                    <TableHead className="text-right">{t("cash")} (&pound;)</TableHead>
-                    <TableHead className="text-right">{t("card")} (&pound;)</TableHead>
-                    <TableHead className="text-right">{t("wallet")} (&pound;)</TableHead>
+                    <TableHead className="text-right">{t("amount")}</TableHead>
+                    <TableHead className="text-right">{t("cash")}</TableHead>
+                    <TableHead className="text-right">{t("card")}</TableHead>
+                    <TableHead className="text-right">{t("wallet")}</TableHead>
                     <TableHead>{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1149,10 +1149,10 @@ const FinancialsPage = () => {
                           <TableCell>{row.courts?.name || "N/A"}</TableCell>
                           <TableCell>{new Date(row.date).toLocaleDateString()}</TableCell>
                           <TableCell>{row.courts?.court_groups?.name || '-'}</TableCell>
-                          <TableCell className="text-right font-medium">&#163;{total}</TableCell>
-                          <TableCell className="text-right font-medium text-green-600">&#163;{row.cash ?? 0}</TableCell>
-                          <TableCell className="text-right font-medium text-green-600">&#163;{row.card ?? 0}</TableCell>
-                          <TableCell className="text-right font-medium text-green-600">&#163;{row.wallet ?? 0}</TableCell>
+                          <TableCell className="text-right font-medium">{total}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">{row.cash ?? 0}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">{row.card ?? 0}</TableCell>
+                          <TableCell className="text-right font-medium text-green-600">{row.wallet ?? 0}</TableCell>
                           <TableCell className="p-4 flex gap-2">
                             {isAdmin && (
                               <Button size="icon" variant="ghost" onClick={() => {
@@ -1196,7 +1196,7 @@ const FinancialsPage = () => {
                     <TableRow>
                       <TableCell colSpan={4} className="font-bold text-right">{t("total")}</TableCell>
                       <TableCell className="font-bold text-right">
-                        £{filteredIncomeReservations.reduce((sum, row) => sum + ((row.cash ?? 0) + (row.card ?? 0) + (row.wallet ?? 0)), 0)}
+                        {filteredIncomeReservations.reduce((sum, row) => sum + ((row.cash ?? 0) + (row.card ?? 0) + (row.wallet ?? 0)), 0)}
                       </TableCell>
                       <TableCell />
                       <TableCell />
@@ -1265,7 +1265,7 @@ const FinancialsPage = () => {
                           name="amount"
                           render={({ field }) => (
                             <FormItem>
-                                <FormLabel>{t("amount")} (&pound;)</FormLabel>
+                                <FormLabel>{t("amount")}</FormLabel>
                               <FormControl>
                                 <Input type="number" step="0.01" {...field} />
                               </FormControl>
@@ -1344,7 +1344,7 @@ const FinancialsPage = () => {
                     <TableHead>{t("date")}</TableHead>
                     <TableHead>{t("category")}</TableHead>
                     <TableHead>{t("notes")}</TableHead>
-                    <TableHead className="text-right">{t("amount")} (&pound;)</TableHead>
+                    <TableHead className="text-right">{t("amount")}</TableHead>
                     <TableHead>{t("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1363,7 +1363,7 @@ const FinancialsPage = () => {
                         <TableCell>{expense.category_name || "-"}</TableCell>
                         <TableCell>{expense.notes || "-"}</TableCell>
                         <TableCell className="text-right font-medium text-red-500">
-                          -&#163;{Math.round(parseFloat(expense.amount.toString()))}
+                          -{Math.round(parseFloat(expense.amount.toString()))}
                         </TableCell>
                         <TableCell>
                           {isAdmin && (
@@ -1464,7 +1464,7 @@ const FinancialsPage = () => {
                               <th className="text-left p-2">{t("title")}</th>
                               <th className="text-left p-2">{t("category")}</th>
                               <th className="text-left p-2">{t("notes")}</th>
-                              <th className="text-right p-2">{t("amount")} (&pound;)</th>
+                              <th className="text-right p-2">{t("amount")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1473,7 +1473,7 @@ const FinancialsPage = () => {
                                 <td className="p-2">{e.title}</td>
                                 <td className="p-2">{e.category_name || '-'}</td>
                                 <td className="p-2">{e.notes || '-'}</td>
-                                <td className="p-2 text-right font-semibold text-red-500">-&#163;{Math.round(e.amount)}</td>
+                                <td className="p-2 text-right font-semibold text-red-500">-{Math.round(e.amount)}</td>
                               </tr>
                             )) : (
                               <tr><td colSpan={4} className="text-center p-2 text-muted-foreground">No expenses found</td></tr>
@@ -1578,7 +1578,7 @@ const FinancialsPage = () => {
                               <th className="text-left p-2">{t("name")}</th>
                               <th className="text-left p-2">{t("category")}</th>
                               <th className="text-left p-2">{t("notes")}</th>
-                              <th className="text-right p-2">{t("amount")} (&pound;)</th>
+                              <th className="text-right p-2">{t("amount")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1588,7 +1588,7 @@ const FinancialsPage = () => {
                                 <td className="p-2">{expense.category_name || '-'}</td>
                                 <td className="p-2">{expense.notes || '-'}</td>
                                 <td className="p-2 text-right font-semibold text-red-500">
-                                  -&#163;{Math.round(expense.amount)}
+                                  -{Math.round(expense.amount)}
                                 </td>
                               </tr>
                             ))}

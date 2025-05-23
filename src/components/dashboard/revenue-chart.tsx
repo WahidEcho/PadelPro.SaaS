@@ -109,7 +109,7 @@ export function RevenueChart() {
               <XAxis dataKey="displayDate" />
               <YAxis />
               <Tooltip 
-                formatter={(value: number) => `£${Math.round(value)}`}
+                formatter={(value: number) => `${Math.round(value)}`}
                 labelFormatter={(label) => `Date: ${label}`}
               />
               <Bar dataKey="revenue" fill="#22c55e" name={t("revenue")}/>

@@ -29,7 +29,7 @@ export function RevenueByCourtGroup({ isLoading, revenueByGroup }: RevenueByCour
               {revenueByGroup.map((item, index) => (
                 <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-md">
                   <span className="font-medium">{t(item.group_name.toLowerCase()) || item.group_name}</span>
-                  <span className="text-xl font-bold">£{Math.round(parseFloat(item.total_revenue.toString()))}</span>
+                  <span className="text-xl font-bold">{Math.round(parseFloat(item.total_revenue.toString()))}</span>
                 </div>
               ))}
             </div>
