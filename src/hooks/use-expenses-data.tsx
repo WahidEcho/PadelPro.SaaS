@@ -69,7 +69,7 @@ export function useExpensesData() {
         .from('expenses')
         .insert({
           title: expenseData.title,
-          amount: expenseData.amount,
+          amount: parseFloat(String(expenseData.amount)),
           date: expenseData.date,
           notes: expenseData.notes || null,
           category_id: expenseData.category_id || null
@@ -82,11 +82,11 @@ export function useExpensesData() {
       fetchExpenses();
       
       return { success: true, data };
-    } catch (error) {
-      console.error('Error creating expense:', error);
+    } catch (error: any) {
+      console.error('Error creating expense:', error?.message || error);
       toast({
         title: "Error",
-        description: "Failed to create expense",
+        description: error?.message || error?.details || "Failed to create expense",
         variant: "destructive",
       });
       return { success: false, error };

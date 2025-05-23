@@ -548,7 +548,7 @@ const SettingsPage = () => {
                                 <AlertDialogHeader>
                                   <AlertDialogTitle>{t("are_you_sure")}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    {t("delete_employee_warning", { email: employee.email })}
+                                    {t("delete_employee_warning") + " " + employee.email}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>

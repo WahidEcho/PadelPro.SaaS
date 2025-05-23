@@ -252,6 +252,12 @@ const ReservationsPage = () => {
       }
       
       return true;
+    })
+    .sort((a, b) => {
+      // Sort by date descending, then by time_start descending
+      const dateA = new Date(`${a.date}T${a.time_start || '00:00'}`);
+      const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
+      return dateB.getTime() - dateA.getTime();
     });
 
   const handleAddReservation = async () => {

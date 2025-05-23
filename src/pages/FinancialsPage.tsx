@@ -472,8 +472,13 @@ const FinancialsPage = () => {
   const generateTimeSlots = () => {
     const slots = [];
     for (let hour = 0; hour < 24; hour++) {
-      slots.push(`${hour.toString().padStart(2, "0")}:00`);
-      slots.push(`${hour.toString().padStart(2, "0")}:30`);
+      for (let min of [0, 30]) {
+        let displayHour = hour % 12 === 0 ? 12 : hour % 12;
+        let ampm = hour < 12 ? 'AM' : 'PM';
+        let label = `${displayHour.toString().padStart(2, '0')}:${min === 0 ? '00' : '30'} ${ampm}`;
+        let value = `${hour.toString().padStart(2, '0')}:${min === 0 ? '00' : '30'}`;
+        slots.push({ value, label });
+      }
     }
     return slots;
   };
@@ -496,21 +501,23 @@ const FinancialsPage = () => {
     setIsSubmittingReservation(true);
     try {
       const totalAmount = cash + card + wallet;
+      const reservationPayload = {
+        client_id: selectedClient,
+        court_id: selectedCourt,
+        date: format(reservationDate, 'yyyy-MM-dd'),
+        time_start: timeStart,
+        time_end: timeEnd,
+        cash,
+        card,
+        wallet,
+        amount: totalAmount,
+        created_by_role: isAdmin ? "admin" : isManager ? "manager" : "employee",
+        employee_name: (isEmployee || isManager) && !isAdmin && user ? user.user_metadata?.full_name || user.email : null,
+        payment_method: 'cash', // Dummy value to satisfy type requirement
+      };
       const { data: reservationData, error: reservationError } = await supabase
         .from('reservations')
-        .insert([
-          {
-            client_id: selectedClient,
-            court_id: selectedCourt,
-            date: format(reservationDate, 'yyyy-MM-dd'),
-            time_start: timeStart,
-            time_end: timeEnd,
-            cash,
-            card,
-            wallet,
-            amount: totalAmount,
-          } as any
-        ])
+        .insert([reservationPayload])
         .select();
       if (reservationError) throw reservationError;
       // Also create a transaction for this reservation
@@ -694,24 +701,26 @@ const FinancialsPage = () => {
   }, [singleDay, dateRange, incomeCourtFilter, incomeClientFilter, incomeGroupFilter]);
 
   // Filter and map reservations for the table
-  const filteredIncomeReservations = incomeReservations.filter(res => {
-    const clientName = res.clients?.name?.toLowerCase() || "";
-    const courtName = res.courts?.name?.toLowerCase() || "";
-    const groupName = res.courts?.court_groups?.name?.toLowerCase() || "";
-    const courtFilter = incomeCourtFilter.toLowerCase();
-    const clientFilter = incomeClientFilter.toLowerCase();
-    const groupFilter = incomeGroupFilter.toLowerCase();
-    return (
-      (!courtFilter || courtName.includes(courtFilter)) &&
-      (!clientFilter || clientName.includes(clientFilter)) &&
-      (!groupFilter || groupName.includes(groupFilter))
-    );
-  })
-  .sort((a, b) => {
-    const dateA = new Date(`${a.date}T${a.time_start || '00:00'}`);
-    const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
-    return dateB.getTime() - dateA.getTime();
-  });
+  const filteredIncomeReservations = incomeReservations
+    .filter(res => {
+      const clientName = res.clients?.name?.toLowerCase() || "";
+      const courtName = res.courts?.name?.toLowerCase() || "";
+      const groupName = res.courts?.court_groups?.name?.toLowerCase() || "";
+      const courtFilter = incomeCourtFilter.toLowerCase();
+      const clientFilter = incomeClientFilter.toLowerCase();
+      const groupFilter = incomeGroupFilter.toLowerCase();
+      return (
+        (!courtFilter || courtName.includes(courtFilter)) &&
+        (!clientFilter || clientName.includes(clientFilter)) &&
+        (!groupFilter || groupName.includes(groupFilter))
+      );
+    })
+    .sort((a, b) => {
+      // Sort by date descending, then by time_start descending
+      const dateA = new Date(`${a.date}T${a.time_start || '00:00'}`);
+      const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
+      return dateB.getTime() - dateA.getTime();
+    });
 
   // Add local state for single day summary
   const [optimisticSingleDayStats, setOptimisticSingleDayStats] = useState<null | {
@@ -735,7 +744,7 @@ const FinancialsPage = () => {
   const [pendingDeleteReservation, setPendingDeleteReservation] = useState<any>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const { isAdmin, isManager } = useAuth();
+  const { isAdmin, isManager, isEmployee, user } = useAuth();
 
   return (
     <DashboardLayout>
@@ -984,9 +993,9 @@ const FinancialsPage = () => {
                           <SelectValue placeholder="Start time" />
                         </SelectTrigger>
                         <SelectContent>
-                          {timeSlots.map((time) => (
-                            <SelectItem key={`start-${time}`} value={time}>
-                              {time}
+                          {timeSlots.map((slot) => (
+                            <SelectItem key={`start-${slot.value}`} value={slot.value}>
+                              {slot.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1002,9 +1011,9 @@ const FinancialsPage = () => {
                           <SelectValue placeholder="End time" />
                         </SelectTrigger>
                         <SelectContent>
-                          {timeSlots.map((time) => (
-                            <SelectItem key={`end-${time}`} value={time}>
-                              {time}
+                          {timeSlots.map((slot) => (
+                            <SelectItem key={`end-${slot.value}`} value={slot.value}>
+                              {slot.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1031,12 +1040,12 @@ const FinancialsPage = () => {
                         onKeyDown={handleClientInputKeyDown}
                       />
                       {showClientDropdown && (
-                        <div className="absolute z-10 bg-white border w-full mt-1 rounded shadow max-h-48 overflow-auto">
+                        <div className="absolute z-10 bg-white dark:bg-gray-800 border w-full mt-1 rounded shadow max-h-48 overflow-auto">
                           {clientSearchResults.length > 0 ? (
                             clientSearchResults.map((client, idx) => (
                               <div
                                 key={client.id}
-                                className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${idx === clientDropdownIndex ? 'bg-gray-100' : ''}`}
+                                className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${idx === clientDropdownIndex ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
                                 onMouseDown={() => {
                                   setSelectedClient(client.id);
                                   setClientSearch(client.name);
@@ -1048,7 +1057,7 @@ const FinancialsPage = () => {
                             ))
                           ) : (
                             <div
-                              className="px-3 py-2 text-muted-foreground cursor-pointer hover:bg-gray-100"
+                              className="px-3 py-2 text-muted-foreground cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                               onMouseDown={() => setIsAddClientDialogOpen(true)}
                             >
                               No client found. <span className="text-blue-600 underline">Add new?</span>
@@ -1286,7 +1295,7 @@ const FinancialsPage = () => {
                                   <div className="flex gap-2">
                                     <FormControl>
                                       <select
-                                        className="border border-gray-600 rounded px-2 py-1 bg-gray-800 text-white focus:ring-2 focus:ring-padel-primary focus:outline-none"
+                                        className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-black dark:text-white"
                                         value={field.value || ""}
                                         onChange={field.onChange}
                                       >
@@ -1754,7 +1763,7 @@ const FinancialsPage = () => {
                       <div className="flex gap-2">
                         <FormControl>
                           <select
-                            className="border rounded px-2 py-1"
+                            className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-black dark:text-white"
                             value={field.value || ""}
                             onChange={field.onChange}
                           >
@@ -1928,9 +1937,9 @@ const FinancialsPage = () => {
                       <SelectValue placeholder="Start time" />
                     </SelectTrigger>
                     <SelectContent>
-                      {timeSlots.map((time) => (
-                        <SelectItem key={`start-${time}`} value={time}>
-                          {time}
+                      {timeSlots.map((slot) => (
+                        <SelectItem key={`start-${slot.value}`} value={slot.value}>
+                          {slot.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1946,9 +1955,9 @@ const FinancialsPage = () => {
                       <SelectValue placeholder="End time" />
                     </SelectTrigger>
                     <SelectContent>
-                      {timeSlots.map((time) => (
-                        <SelectItem key={`end-${time}`} value={time}>
-                          {time}
+                      {timeSlots.map((slot) => (
+                        <SelectItem key={`end-${slot.value}`} value={slot.value}>
+                          {slot.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1975,12 +1984,12 @@ const FinancialsPage = () => {
                     onKeyDown={handleClientInputKeyDown}
                   />
                   {showClientDropdown && (
-                    <div className="absolute z-10 bg-white border w-full mt-1 rounded shadow max-h-48 overflow-auto">
+                    <div className="absolute z-10 bg-white dark:bg-gray-800 border w-full mt-1 rounded shadow max-h-48 overflow-auto">
                       {clientSearchResults.length > 0 ? (
                         clientSearchResults.map((client, idx) => (
                           <div
                             key={client.id}
-                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 ${idx === clientDropdownIndex ? 'bg-gray-100' : ''}`}
+                            className={`px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${idx === clientDropdownIndex ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
                             onMouseDown={() => {
                               setSelectedClient(client.id);
                               setClientSearch(client.name);
@@ -1992,7 +2001,7 @@ const FinancialsPage = () => {
                         ))
                       ) : (
                         <div
-                          className="px-3 py-2 text-muted-foreground cursor-pointer hover:bg-gray-100"
+                          className="px-3 py-2 text-muted-foreground cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                           onMouseDown={() => setIsAddClientDialogOpen(true)}
                         >
                           No client found. <span className="text-blue-600 underline">Add new?</span>
