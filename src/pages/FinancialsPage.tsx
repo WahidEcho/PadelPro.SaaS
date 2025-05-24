@@ -261,45 +261,181 @@ const FinancialsPage = () => {
       String(date.getDate()).padStart(2, '0');
   }
 
+  // Move fetchCourtSales outside the useEffect to make it callable from the realtime handler
+  const fetchCourtSales = async () => {
+    if (!dateRange || !dateRange.from || !dateRange.to) return;
+    
+    let query = supabase
+      .from('reservations')
+      .select(`amount, courts!inner(name, court_groups!inner(id, name))`);
+    
+    query = query
+      .gte('date', toLocalDateString(dateRange.from))
+      .lte('date', toLocalDateString(dateRange.to));
+    
+    const { data, error } = await query;
+    if (error) {
+      setGroupedCourtSales([]);
+      return;
+    }
+    
+    // Group by court group, then by court
+    const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
+    for (const res of data) {
+      const groupId = res.courts.court_groups.id;
+      const groupName = res.courts.court_groups.name;
+      const courtId = res.courts.name;
+      if (!groupMap[groupId]) {
+        groupMap[groupId] = { groupName, courts: {} };
+      }
+      if (!groupMap[groupId].courts[courtId]) {
+        groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
+      }
+      groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
+    }
+    
+    // Convert to array for rendering
+    const grouped = Object.values(groupMap).map(g => ({
+      groupName: g.groupName,
+      courts: Object.values(g.courts)
+    }));
+    setGroupedCourtSales(grouped);
+  };
+
+  // Move fetchSingleDayCourtSales outside the useEffect to make it callable from the realtime handler
+  const fetchSingleDayCourtSales = async () => {
+    if (!singleDay) {
+      setSingleDayCourtSales([]);
+      return;
+    }
+    
+    let query = supabase
+      .from('reservations')
+      .select(`amount, courts!inner(name, court_groups!inner(id, name))`)
+      .eq('date', toLocalDateString(singleDay));
+    
+    const { data, error } = await query;
+    if (error) {
+      setSingleDayCourtSales([]);
+      return;
+    }
+    
+    // Group by court group, then by court
+    const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
+    for (const res of data) {
+      const groupId = res.courts.court_groups.id;
+      const groupName = res.courts.court_groups.name;
+      const courtId = res.courts.name;
+      if (!groupMap[groupId]) {
+        groupMap[groupId] = { groupName, courts: {} };
+      }
+      if (!groupMap[groupId].courts[courtId]) {
+        groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
+      }
+      groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
+    }
+    
+    // Convert to array for rendering
+    const grouped = Object.values(groupMap).map(g => ({
+      groupName: g.groupName,
+      courts: Object.values(g.courts)
+    }));
+    setSingleDayCourtSales(grouped);
+  };
+
+  // Fetch reservations for the income table
+  const [incomeReservations, setIncomeReservations] = useState<any[]>([]);
+  const fetchIncomeReservations = async () => {
+    let query = supabase
+      .from('reservations')
+      .select(`
+        id,
+        date,
+        cash,
+        card,
+        wallet,
+        created_at,
+        clients(name, id),
+        courts(name, id, court_groups(name))
+      `);
+    if (singleDay) {
+      query = query.eq('date', toLocalDateString(singleDay));
+    } else if (dateRange && dateRange.from && dateRange.to) {
+      query = query.gte('date', toLocalDateString(dateRange.from)).lte('date', toLocalDateString(dateRange.to));
+    }
+    const { data, error } = await query;
+    if (!error) {
+      setIncomeReservations(data || []);
+    } else {
+      setIncomeReservations([]);
+    }
+  };
+
   // Fetch and group sales per court and group for the summary tab
   useEffect(() => {
-    async function fetchCourtSales() {
-      let query = supabase
-        .from('reservations')
-        .select(`amount, courts!inner(name, court_groups!inner(id, name))`);
-      if (dateRange && dateRange.from && dateRange.to) {
-        query = query
-          .gte('date', toLocalDateString(dateRange.from))
-          .lte('date', toLocalDateString(dateRange.to));
-      }
-      const { data, error } = await query;
-      if (error) {
-        setGroupedCourtSales([]);
-        return;
-      }
-      // Group by court group, then by court
-      const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
-      for (const res of data) {
-        const groupId = res.courts.court_groups.id;
-        const groupName = res.courts.court_groups.name;
-        const courtId = res.courts.name;
-        if (!groupMap[groupId]) {
-          groupMap[groupId] = { groupName, courts: {} };
-        }
-        if (!groupMap[groupId].courts[courtId]) {
-          groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
-        }
-        groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
-      }
-      // Convert to array for rendering
-      const grouped = Object.values(groupMap).map(g => ({
-        groupName: g.groupName,
-        courts: Object.values(g.courts)
-      }));
-      setGroupedCourtSales(grouped);
-    }
     fetchCourtSales();
   }, [dateRange]);
+
+  // For single day: group court sales
+  useEffect(() => {
+    fetchSingleDayCourtSales();
+  }, [singleDay]);
+
+  useEffect(() => {
+    // Define the handleRealtimeChange function outside of the useEffect 
+    // to ensure it doesn't depend on any changing state
+    const handleRealtimeChange = () => {
+      console.log("Realtime change detected - fetching income reservations");
+      fetchIncomeReservations();
+      
+      // Also update summary data when transactions or reservations change
+      if (singleDay) {
+        fetchSingleDayCourtSales();
+      } else if (dateRange && dateRange.from && dateRange.to) {
+        fetchCourtSales();
+      }
+      
+      // Re-fetch transactions and expenses for the summary calculations
+      fetchTransactions();
+      fetchExpenses();
+    };
+
+    // Create a more specific channel name for each table
+    const transactionsChannel = supabase
+      .channel('realtime:income-transactions')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'transactions' 
+      }, handleRealtimeChange)
+      .subscribe();
+
+    const reservationsChannel = supabase
+      .channel('realtime:income-reservations')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'reservations' 
+      }, handleRealtimeChange)
+      .subscribe();
+
+    // Also listen for expense changes
+    const expensesChannel = supabase
+      .channel('realtime:expenses')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'expenses' 
+      }, handleRealtimeChange)
+      .subscribe();
+
+    // Clean up the channels on component unmount
+    return () => {
+      supabase.removeChannel(transactionsChannel);
+      supabase.removeChannel(reservationsChannel);
+      supabase.removeChannel(expensesChannel);
+    };
+  }, []); // Empty dependency array to ensure this only runs once
 
   // Filter transactions for the income table:
   const filteredIncomeTransactions = filteredTransactions.filter(transaction => {
@@ -329,422 +465,6 @@ const FinancialsPage = () => {
   const singleDayWallet = singleDayTransactions.filter(t => t.payment_method === 'wallet').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
   const singleDayTotalExpenses = singleDayExpenses.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0);
   const singleDayNet = singleDayCash - singleDayTotalExpenses;
-
-  // For single day: group court sales
-  useEffect(() => {
-    async function fetchSingleDayCourtSales() {
-      if (!singleDay) {
-        setSingleDayCourtSales([]);
-        return;
-      }
-      let query = supabase
-        .from('reservations')
-        .select(`amount, courts!inner(name, court_groups!inner(id, name))`)
-        .eq('date', toLocalDateString(singleDay));
-      const { data, error } = await query;
-      if (error) {
-        setSingleDayCourtSales([]);
-        return;
-      }
-      // Group by court group, then by court
-      const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
-      for (const res of data) {
-        const groupId = res.courts.court_groups.id;
-        const groupName = res.courts.court_groups.name;
-        const courtId = res.courts.name;
-        if (!groupMap[groupId]) {
-          groupMap[groupId] = { groupName, courts: {} };
-        }
-        if (!groupMap[groupId].courts[courtId]) {
-          groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
-        }
-        groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
-      }
-      // Convert to array for rendering
-      const grouped = Object.values(groupMap).map(g => ({
-        groupName: g.groupName,
-        courts: Object.values(g.courts)
-      }));
-      setSingleDayCourtSales(grouped);
-    }
-    fetchSingleDayCourtSales();
-  }, [singleDay]);
-
-  // Update the groupedIncomeTransactions to use the type
-  const groupedIncomeTransactions = Object.values(
-    filteredIncomeTransactions.reduce((acc, transaction) => {
-      const reservationId = transaction.reservation_id || transaction.reservations?.id || transaction.id;
-      if (!acc[reservationId]) {
-        acc[reservationId] = {
-          reservationId,
-          client: transaction.reservations?.clients?.name || "N/A",
-          court: transaction.reservations?.courts?.name || "N/A",
-          date: transaction.date,
-          group: transaction.reservations?.courts && 'court_groups' in transaction.reservations.courts && transaction.reservations.courts.court_groups?.name ? transaction.reservations.courts.court_groups.name : '-',
-          cash: 0,
-          card: 0,
-          wallet: 0,
-        };
-      }
-      if (transaction.payment_method === 'cash') {
-        acc[reservationId].cash += Math.round(parseFloat(transaction.amount.toString()));
-      } else if (transaction.payment_method === 'card') {
-        acc[reservationId].card += Math.round(parseFloat(transaction.amount.toString()));
-      } else if (transaction.payment_method === 'wallet') {
-        acc[reservationId].wallet += Math.round(parseFloat(transaction.amount.toString()));
-      }
-      return acc;
-    }, {} as Record<string, GroupedIncomeTransaction>)
-  ).sort((a: GroupedIncomeTransaction, b: GroupedIncomeTransaction) => new Date(b.date).getTime() - new Date(a.date).getTime()) as GroupedIncomeTransaction[];
-
-  // Reservation dialog state for Income tab
-  const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
-  const [courts, setCourts] = useState<Court[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [reservationDate, setReservationDate] = useState<Date | undefined>(new Date());
-  const [selectedCourt, setSelectedCourt] = useState<string>("");
-  const [timeStart, setTimeStart] = useState<string>("09:00");
-  const [timeEnd, setTimeEnd] = useState<string>("10:00");
-  const [selectedClient, setSelectedClient] = useState<string>("");
-  const [cash, setCash] = useState<number>(0);
-  const [card, setCard] = useState<number>(0);
-  const [wallet, setWallet] = useState<number>(0);
-  const [isSubmittingReservation, setIsSubmittingReservation] = useState(false);
-  const [clientSearch, setClientSearch] = useState("");
-  const [clientSearchResults, setClientSearchResults] = useState<Client[]>([]);
-  const [showClientDropdown, setShowClientDropdown] = useState(false);
-  const [clientDropdownIndex, setClientDropdownIndex] = useState(-1);
-  const clientInputRef = useRef<HTMLInputElement>(null);
-
-  // Add new state variables for Add Client dialog
-  const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false);
-  const [newClientName, setNewClientName] = useState("");
-  const [newClientPhone, setNewClientPhone] = useState("");
-  const [isAddingClient, setIsAddingClient] = useState(false);
-
-  // Debounced search for clients
-  useEffect(() => {
-    if (!clientSearch) {
-      setClientSearchResults([]);
-      return;
-    }
-    const handler = setTimeout(async () => {
-      const { data } = await supabase
-        .from('clients')
-        .select('*')
-        .or(`name.ilike.%${clientSearch}%,phone.ilike.%${clientSearch}%`)
-        .eq('is_deleted', false);
-      setClientSearchResults(data || []);
-      setShowClientDropdown(true);
-      setClientDropdownIndex(-1);
-    }, 1);
-    return () => clearTimeout(handler);
-  }, [clientSearch]);
-
-  // Keyboard navigation for dropdown
-  const handleClientInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showClientDropdown || clientSearchResults.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      setClientDropdownIndex(idx => Math.min(idx + 1, clientSearchResults.length - 1));
-      e.preventDefault();
-    } else if (e.key === 'ArrowUp') {
-      setClientDropdownIndex(idx => Math.max(idx - 1, 0));
-      e.preventDefault();
-    } else if (e.key === 'Enter' && clientDropdownIndex >= 0) {
-      const client = clientSearchResults[clientDropdownIndex];
-      setSelectedClient(client.id);
-      setClientSearch(client.name);
-      setShowClientDropdown(false);
-    }
-  };
-
-  // Fetch courts and clients for reservation dialog
-  useEffect(() => {
-    async function fetchCourtsAndClients() {
-      const { data: courtsData } = await supabase.from('courts').select('*');
-      setCourts(courtsData || []);
-      const { data: clientsData } = await supabase.from('clients').select('*').eq('is_deleted', false);
-      setClients(clientsData || []);
-    }
-    if (reservationDialogOpen) fetchCourtsAndClients();
-  }, [reservationDialogOpen]);
-
-  // Generate time slots for selection (all 24 hours in 30-minute intervals)
-  const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = 0; hour < 24; hour++) {
-      for (let min of [0, 30]) {
-        let displayHour = hour % 12 === 0 ? 12 : hour % 12;
-        let ampm = hour < 12 ? 'AM' : 'PM';
-        let label = `${displayHour.toString().padStart(2, '0')}:${min === 0 ? '00' : '30'} ${ampm}`;
-        let value = `${hour.toString().padStart(2, '0')}:${min === 0 ? '00' : '30'}`;
-        slots.push({ value, label });
-      }
-    }
-    return slots;
-  };
-  const timeSlots = generateTimeSlots();
-  const handleTimeStartChange = (value: string) => {
-    setTimeStart(value);
-    const [hours, minutes] = value.split(':').map(Number);
-    const endHours = hours + 1;
-    const formattedEndHours = endHours.toString().padStart(2, '0');
-    const formattedEndMinutes = minutes.toString().padStart(2, '0');
-    const newEndTime = `${formattedEndHours}:${formattedEndMinutes}`;
-    setTimeEnd(newEndTime);
-  };
-  // Add Reservation handler
-  const handleAddReservation = async () => {
-    if (!selectedCourt || !selectedClient || !reservationDate) {
-      toast({ title: "Error", description: "Please fill all the required fields", variant: "destructive" });
-      return;
-    }
-    setIsSubmittingReservation(true);
-    try {
-      const totalAmount = cash + card + wallet;
-      const reservationPayload = {
-        client_id: selectedClient,
-        court_id: selectedCourt,
-        date: format(reservationDate, 'yyyy-MM-dd'),
-        time_start: timeStart,
-        time_end: timeEnd,
-        cash,
-        card,
-        wallet,
-        amount: totalAmount,
-        created_by_role: isAdmin ? "admin" : isManager ? "manager" : "employee",
-        employee_name: (isEmployee || isManager) && !isAdmin && user ? user.user_metadata?.full_name || user.email : null,
-        payment_method: 'cash', // Dummy value to satisfy type requirement
-      };
-      const { data: reservationData, error: reservationError } = await supabase
-        .from('reservations')
-        .insert([reservationPayload])
-        .select();
-      if (reservationError) throw reservationError;
-      // Also create a transaction for this reservation
-      const txInserts = [];
-      if (cash > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: cash, payment_method: 'cash', date: format(reservationDate, 'yyyy-MM-dd') });
-      if (card > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: card, payment_method: 'card', date: format(reservationDate, 'yyyy-MM-dd') });
-      if (wallet > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: wallet, payment_method: 'wallet', date: format(reservationDate, 'yyyy-MM-dd') });
-      if (txInserts.length > 0) {
-        await supabase.from('transactions').insert(txInserts);
-      }
-      // Reset form
-      setSelectedCourt("");
-      setSelectedClient("");
-      setReservationDate(new Date());
-      setTimeStart("09:00");
-      setTimeEnd("10:00");
-      setCash(0);
-      setCard(0);
-      setWallet(0);
-      setReservationDialogOpen(false);
-      
-      // Manually fetch the updated income reservations
-      fetchIncomeReservations();
-      
-      toast({ title: "Reservation added", description: `Reservation has been added successfully` });
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message || "Failed to add reservation", variant: "destructive" });
-    } finally {
-      setIsSubmittingReservation(false);
-    }
-  };
-
-  // Add new state variables for edit/delete functionality
-  const [editReservationDialogOpen, setEditReservationDialogOpen] = useState(false);
-  const [deleteReservationDialogOpen, setDeleteReservationDialogOpen] = useState(false);
-  const [selectedReservation, setSelectedReservation] = useState<any>(null);
-  const [isDeletingReservation, setIsDeletingReservation] = useState(false);
-
-  // Add the delete handler function
-  const handleDeleteReservation = async () => {
-    if (!selectedReservation) return;
-    setIsDeletingReservation(true);
-    try {
-      // First, delete all related transactions
-      await supabase
-        .from('transactions')
-        .delete()
-        .eq('reservation_id', selectedReservation.reservationId);
-
-      // Then, delete the reservation
-      const { error: reservationError } = await supabase
-        .from('reservations')
-        .delete()
-        .eq('id', selectedReservation.reservationId);
-      
-      if (reservationError) throw reservationError;
-      
-      toast({
-        title: "Reservation deleted",
-        description: "The reservation has been deleted successfully.",
-      });
-      setDeleteReservationDialogOpen(false);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete reservation",
-        variant: "destructive",
-      });
-    } finally {
-      setIsDeletingReservation(false);
-    }
-  };
-
-  // Update the handleEditReservation function to use fetchTransactions
-  const handleEditReservation = async (data: any) => {
-    if (!selectedReservation) return;
-    try {
-      const { error: reservationError } = await supabase
-        .from('reservations')
-        .update({
-          client_id: data.client_id,
-          court_id: data.court_id,
-          date: data.date,
-          time_start: data.time_start,
-          time_end: data.time_end,
-          cash: data.cash,
-          card: data.card,
-          wallet: data.wallet,
-          amount: data.cash + data.card + data.wallet,
-        })
-        .eq('id', selectedReservation.reservationId);
-
-      if (reservationError) throw reservationError;
-
-      // Refresh the transactions data
-      await fetchTransactions();
-
-      toast({
-        title: "Reservation updated",
-        description: "The reservation has been updated successfully.",
-      });
-      setEditReservationDialogOpen(false);
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update reservation",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Add useEffect to pre-fill form data when a reservation is selected for editing
-  useEffect(() => {
-    if (selectedReservation && editReservationDialogOpen) {
-      // Set the date
-      setReservationDate(new Date(selectedReservation.date));
-      
-      // Set the court
-      setSelectedCourt(selectedReservation.court_id);
-      
-      // Set the client
-      setSelectedClient(selectedReservation.client_id);
-      setClientSearch(selectedReservation.client);
-      
-      // Set the payment amounts
-      setCash(selectedReservation.cash);
-      setCard(selectedReservation.card);
-      setWallet(selectedReservation.wallet);
-      
-      // Set the time slots
-      setTimeStart(selectedReservation.time_start);
-      setTimeEnd(selectedReservation.time_end);
-    }
-  }, [selectedReservation, editReservationDialogOpen]);
-
-  useEffect(() => {
-    // Define the handleRealtimeChange function outside of the useEffect 
-    // to ensure it doesn't depend on any changing state
-    const handleRealtimeChange = () => {
-      console.log("Realtime change detected - fetching income reservations");
-      fetchIncomeReservations();
-    };
-
-    // Create a more specific channel name for each table
-    const transactionsChannel = supabase
-      .channel('realtime:income-transactions')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'transactions' 
-      }, handleRealtimeChange)
-      .subscribe();
-
-    const reservationsChannel = supabase
-      .channel('realtime:income-reservations')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'reservations' 
-      }, handleRealtimeChange)
-      .subscribe();
-
-    // Clean up the channels on component unmount
-    return () => {
-      supabase.removeChannel(transactionsChannel);
-      supabase.removeChannel(reservationsChannel);
-    };
-  }, []); // Empty dependency array to ensure this only runs once
-
-  // Fetch reservations for the income table
-  const [incomeReservations, setIncomeReservations] = useState<any[]>([]);
-  const fetchIncomeReservations = async () => {
-    let query = supabase
-      .from('reservations')
-      .select(`
-        id,
-        date,
-        cash,
-        card,
-        wallet,
-        created_at,
-        clients(name, id),
-        courts(name, id, court_groups(name))
-      `);
-    if (singleDay) {
-      query = query.eq('date', toLocalDateString(singleDay));
-    } else if (dateRange && dateRange.from && dateRange.to) {
-      query = query.gte('date', toLocalDateString(dateRange.from)).lte('date', toLocalDateString(dateRange.to));
-    }
-    const { data, error } = await query;
-    if (!error) {
-      setIncomeReservations(data || []);
-    } else {
-      setIncomeReservations([]);
-    }
-  };
-  useEffect(() => {
-    fetchIncomeReservations();
-  }, [singleDay, dateRange, incomeCourtFilter, incomeClientFilter, incomeGroupFilter]);
-
-  // Filter and map reservations for the table
-  const filteredIncomeReservations = incomeReservations
-    .filter(res => {
-      const clientName = res.clients?.name?.toLowerCase() || "";
-      const courtName = res.courts?.name?.toLowerCase() || "";
-      const groupName = res.courts?.court_groups?.name?.toLowerCase() || "";
-      const courtFilter = incomeCourtFilter.toLowerCase();
-      const clientFilter = incomeClientFilter.toLowerCase();
-      const groupFilter = incomeGroupFilter.toLowerCase();
-      return (
-        (!courtFilter || courtName.includes(courtFilter)) &&
-        (!clientFilter || clientName.includes(clientFilter)) &&
-        (!groupFilter || groupName.includes(groupFilter))
-      );
-    })
-    .sort((a, b) => {
-      // Primary sort: by created_at timestamp (descending)
-      if (a.created_at && b.created_at) {
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
-      
-      // Fallback sort: by date and time_start (descending)
-      const dateA = new Date(`${a.date}T${a.time_start || '00:00'}`);
-      const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
-      return dateB.getTime() - dateA.getTime();
-    });
 
   // Add local state for single day summary
   const [optimisticSingleDayStats, setOptimisticSingleDayStats] = useState<null | {
