@@ -113,7 +113,7 @@ const FinancialsPage = () => {
   const { t } = useLanguage();
   
   // Use our custom hooks for Supabase data
-  const { expenses, isLoading: expensesLoading, createExpense, updateExpense, deleteExpense, categories, createCategory, fetchCategories } = useExpensesData();
+  const { expenses, isLoading: expensesLoading, createExpense, updateExpense, deleteExpense, categories, createCategory, fetchCategories, fetchExpenses } = useExpensesData();
   const { transactions, isLoading: transactionsLoading, fetchTransactions } = useTransactionsData();
   
   // Calculate financial stats
@@ -265,82 +265,82 @@ const FinancialsPage = () => {
   const fetchCourtSales = async () => {
     if (!dateRange || !dateRange.from || !dateRange.to) return;
     
-    let query = supabase
-      .from('reservations')
-      .select(`amount, courts!inner(name, court_groups!inner(id, name))`);
+      let query = supabase
+        .from('reservations')
+        .select(`amount, courts!inner(name, court_groups!inner(id, name))`);
     
-    query = query
-      .gte('date', toLocalDateString(dateRange.from))
-      .lte('date', toLocalDateString(dateRange.to));
+        query = query
+          .gte('date', toLocalDateString(dateRange.from))
+          .lte('date', toLocalDateString(dateRange.to));
     
-    const { data, error } = await query;
-    if (error) {
-      setGroupedCourtSales([]);
-      return;
-    }
-    
-    // Group by court group, then by court
-    const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
-    for (const res of data) {
-      const groupId = res.courts.court_groups.id;
-      const groupName = res.courts.court_groups.name;
-      const courtId = res.courts.name;
-      if (!groupMap[groupId]) {
-        groupMap[groupId] = { groupName, courts: {} };
+      const { data, error } = await query;
+      if (error) {
+        setGroupedCourtSales([]);
+        return;
       }
-      if (!groupMap[groupId].courts[courtId]) {
-        groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
-      }
-      groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
-    }
     
-    // Convert to array for rendering
-    const grouped = Object.values(groupMap).map(g => ({
-      groupName: g.groupName,
-      courts: Object.values(g.courts)
-    }));
-    setGroupedCourtSales(grouped);
+      // Group by court group, then by court
+      const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
+      for (const res of data) {
+        const groupId = res.courts.court_groups.id;
+        const groupName = res.courts.court_groups.name;
+        const courtId = res.courts.name;
+        if (!groupMap[groupId]) {
+          groupMap[groupId] = { groupName, courts: {} };
+        }
+        if (!groupMap[groupId].courts[courtId]) {
+          groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
+        }
+        groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
+      }
+    
+      // Convert to array for rendering
+      const grouped = Object.values(groupMap).map(g => ({
+        groupName: g.groupName,
+        courts: Object.values(g.courts)
+      }));
+      setGroupedCourtSales(grouped);
   };
 
   // Move fetchSingleDayCourtSales outside the useEffect to make it callable from the realtime handler
   const fetchSingleDayCourtSales = async () => {
-    if (!singleDay) {
-      setSingleDayCourtSales([]);
-      return;
-    }
-    
-    let query = supabase
-      .from('reservations')
-      .select(`amount, courts!inner(name, court_groups!inner(id, name))`)
-      .eq('date', toLocalDateString(singleDay));
-    
-    const { data, error } = await query;
-    if (error) {
-      setSingleDayCourtSales([]);
-      return;
-    }
-    
-    // Group by court group, then by court
-    const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
-    for (const res of data) {
-      const groupId = res.courts.court_groups.id;
-      const groupName = res.courts.court_groups.name;
-      const courtId = res.courts.name;
-      if (!groupMap[groupId]) {
-        groupMap[groupId] = { groupName, courts: {} };
+      if (!singleDay) {
+        setSingleDayCourtSales([]);
+        return;
       }
-      if (!groupMap[groupId].courts[courtId]) {
-        groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
-      }
-      groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
-    }
     
-    // Convert to array for rendering
-    const grouped = Object.values(groupMap).map(g => ({
-      groupName: g.groupName,
-      courts: Object.values(g.courts)
-    }));
-    setSingleDayCourtSales(grouped);
+      let query = supabase
+        .from('reservations')
+        .select(`amount, courts!inner(name, court_groups!inner(id, name))`)
+        .eq('date', toLocalDateString(singleDay));
+    
+      const { data, error } = await query;
+      if (error) {
+        setSingleDayCourtSales([]);
+        return;
+      }
+    
+      // Group by court group, then by court
+      const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
+      for (const res of data) {
+        const groupId = res.courts.court_groups.id;
+        const groupName = res.courts.court_groups.name;
+        const courtId = res.courts.name;
+        if (!groupMap[groupId]) {
+          groupMap[groupId] = { groupName, courts: {} };
+        }
+        if (!groupMap[groupId].courts[courtId]) {
+          groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
+        }
+        groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
+      }
+    
+      // Convert to array for rendering
+      const grouped = Object.values(groupMap).map(g => ({
+        groupName: g.groupName,
+        courts: Object.values(g.courts)
+      }));
+      setSingleDayCourtSales(grouped);
   };
 
   // Fetch reservations for the income table
@@ -435,7 +435,12 @@ const FinancialsPage = () => {
       supabase.removeChannel(reservationsChannel);
       supabase.removeChannel(expensesChannel);
     };
-  }, []); // Empty dependency array to ensure this only runs once
+    // Intentionally keeping the dependency array empty to create these event handlers only once.
+    // Adding dependencies like fetchIncomeReservations, dateRange, etc. would cause multiple 
+    // subscriptions to be created and torn down, which would be inefficient and potentially 
+    // cause websocket connection issues.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filter transactions for the income table:
   const filteredIncomeTransactions = filteredTransactions.filter(transaction => {
@@ -489,6 +494,236 @@ const FinancialsPage = () => {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { isAdmin, isManager, isEmployee, user } = useAuth();
+
+  // Add missing state variables for edit/delete functionality
+  const [selectedReservation, setSelectedReservation] = useState<any>(null);
+  const [editReservationDialogOpen, setEditReservationDialogOpen] = useState(false);
+  const [deleteReservationDialogOpen, setDeleteReservationDialogOpen] = useState(false);
+  const [isDeletingReservation, setIsDeletingReservation] = useState(false);
+
+  // Add the handleDeleteReservation function
+  const handleDeleteReservation = async () => {
+    if (!selectedReservation) return;
+    setIsDeletingReservation(true);
+    try {
+      // First, delete all related transactions
+      await supabase
+        .from('transactions')
+        .delete()
+        .eq('reservation_id', selectedReservation.id);
+
+      // Then, delete the reservation
+      const { error: reservationError } = await supabase
+        .from('reservations')
+        .delete()
+        .eq('id', selectedReservation.id);
+      
+      if (reservationError) throw reservationError;
+      
+      // Refresh data
+      await fetchIncomeReservations();
+      
+      toast({
+        title: "Reservation deleted",
+        description: "The reservation has been deleted successfully.",
+      });
+      setDeleteReservationDialogOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete reservation",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingReservation(false);
+    }
+  };
+
+  // Reservation dialog state for Income tab
+  const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
+  const [courts, setCourts] = useState<Court[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [reservationDate, setReservationDate] = useState<Date | undefined>(new Date());
+  const [selectedCourt, setSelectedCourt] = useState<string>("");
+  const [timeStart, setTimeStart] = useState<string>("09:00");
+  const [timeEnd, setTimeEnd] = useState<string>("10:00");
+  const [selectedClient, setSelectedClient] = useState<string>("");
+  const [cash, setCash] = useState<number>(0);
+  const [card, setCard] = useState<number>(0);
+  const [wallet, setWallet] = useState<number>(0);
+  const [isSubmittingReservation, setIsSubmittingReservation] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientSearchResults, setClientSearchResults] = useState<Client[]>([]);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [clientDropdownIndex, setClientDropdownIndex] = useState(-1);
+  const clientInputRef = useRef<HTMLInputElement>(null);
+
+  // Add new state variables for Add Client dialog
+  const [isAddClientDialogOpen, setIsAddClientDialogOpen] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [isAddingClient, setIsAddingClient] = useState(false);
+
+  // Debounced search for clients
+  useEffect(() => {
+    if (!clientSearch) {
+      setClientSearchResults([]);
+      return;
+    }
+    const handler = setTimeout(async () => {
+      const { data } = await supabase
+        .from('clients')
+        .select('*')
+        .or(`name.ilike.%${clientSearch}%,phone.ilike.%${clientSearch}%`)
+        .eq('is_deleted', false);
+      setClientSearchResults(data || []);
+      setShowClientDropdown(true);
+      setClientDropdownIndex(-1);
+    }, 1);
+    return () => clearTimeout(handler);
+  }, [clientSearch]);
+
+  // Keyboard navigation for dropdown
+  const handleClientInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showClientDropdown || clientSearchResults.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      setClientDropdownIndex(idx => Math.min(idx + 1, clientSearchResults.length - 1));
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      setClientDropdownIndex(idx => Math.max(idx - 1, 0));
+      e.preventDefault();
+    } else if (e.key === 'Enter' && clientDropdownIndex >= 0) {
+      const client = clientSearchResults[clientDropdownIndex];
+      setSelectedClient(client.id);
+      setClientSearch(client.name);
+      setShowClientDropdown(false);
+    }
+  };
+
+  // Fetch courts and clients for reservation dialog
+  useEffect(() => {
+    async function fetchCourtsAndClients() {
+      const { data: courtsData } = await supabase.from('courts').select('*');
+      setCourts(courtsData || []);
+      const { data: clientsData } = await supabase.from('clients').select('*').eq('is_deleted', false);
+      setClients(clientsData || []);
+    }
+    if (reservationDialogOpen) fetchCourtsAndClients();
+  }, [reservationDialogOpen]);
+
+  // Generate time slots for selection (all 24 hours in 30-minute intervals)
+  const generateTimeSlots = () => {
+    const slots = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let min of [0, 30]) {
+        let displayHour = hour % 12 === 0 ? 12 : hour % 12;
+        let ampm = hour < 12 ? 'AM' : 'PM';
+        let label = `${displayHour.toString().padStart(2, '0')}:${min === 0 ? '00' : '30'} ${ampm}`;
+        let value = `${hour.toString().padStart(2, '0')}:${min === 0 ? '00' : '30'}`;
+        slots.push({ value, label });
+      }
+    }
+    return slots;
+  };
+  const timeSlots = generateTimeSlots();
+  const handleTimeStartChange = (value: string) => {
+    setTimeStart(value);
+    const [hours, minutes] = value.split(':').map(Number);
+    const endHours = hours + 1;
+    const formattedEndHours = endHours.toString().padStart(2, '0');
+    const formattedEndMinutes = minutes.toString().padStart(2, '0');
+    const newEndTime = `${formattedEndHours}:${formattedEndMinutes}`;
+    setTimeEnd(newEndTime);
+  };
+  // Add Reservation handler
+  const handleAddReservation = async () => {
+    if (!selectedCourt || !selectedClient || !reservationDate) {
+      toast({ title: "Error", description: "Please fill all the required fields", variant: "destructive" });
+      return;
+    }
+    setIsSubmittingReservation(true);
+    try {
+      const totalAmount = cash + card + wallet;
+      const reservationPayload = {
+            client_id: selectedClient,
+            court_id: selectedCourt,
+            date: format(reservationDate, 'yyyy-MM-dd'),
+            time_start: timeStart,
+            time_end: timeEnd,
+            cash,
+            card,
+            wallet,
+            amount: totalAmount,
+        created_by_role: isAdmin ? "admin" : isManager ? "manager" : "employee",
+        employee_name: (isEmployee || isManager) && !isAdmin && user ? user.user_metadata?.full_name || user.email : null,
+        payment_method: 'cash', // Dummy value to satisfy type requirement
+      };
+      const { data: reservationData, error: reservationError } = await supabase
+        .from('reservations')
+        .insert([reservationPayload])
+        .select();
+      if (reservationError) throw reservationError;
+      // Also create a transaction for this reservation
+      const txInserts = [];
+      if (cash > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: cash, payment_method: 'cash', date: format(reservationDate, 'yyyy-MM-dd') });
+      if (card > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: card, payment_method: 'card', date: format(reservationDate, 'yyyy-MM-dd') });
+      if (wallet > 0) txInserts.push({ reservation_id: reservationData[0].id, amount: wallet, payment_method: 'wallet', date: format(reservationDate, 'yyyy-MM-dd') });
+      if (txInserts.length > 0) {
+        await supabase.from('transactions').insert(txInserts);
+      }
+      // Reset form
+      setSelectedCourt("");
+      setSelectedClient("");
+      setReservationDate(new Date());
+      setTimeStart("09:00");
+      setTimeEnd("10:00");
+      setCash(0);
+      setCard(0);
+      setWallet(0);
+      setReservationDialogOpen(false);
+      
+      // Manually fetch the updated income reservations
+      fetchIncomeReservations();
+      
+      toast({ title: "Reservation added", description: `Reservation has been added successfully` });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to add reservation", variant: "destructive" });
+    } finally {
+      setIsSubmittingReservation(false);
+    }
+  };
+
+  // Load income reservations when filters change
+  useEffect(() => {
+    fetchIncomeReservations();
+  }, [singleDay, dateRange, incomeCourtFilter, incomeClientFilter, incomeGroupFilter]);
+
+  // Filter and map reservations for the table
+  const filteredIncomeReservations = incomeReservations
+    .filter(res => {
+      const clientName = res.clients?.name?.toLowerCase() || "";
+      const courtName = res.courts?.name?.toLowerCase() || "";
+      const groupName = res.courts?.court_groups?.name?.toLowerCase() || "";
+      const courtFilter = incomeCourtFilter.toLowerCase();
+      const clientFilter = incomeClientFilter.toLowerCase();
+      const groupFilter = incomeGroupFilter.toLowerCase();
+      return (
+        (!courtFilter || courtName.includes(courtFilter)) &&
+        (!clientFilter || clientName.includes(clientFilter)) &&
+        (!groupFilter || groupName.includes(groupFilter))
+      );
+    })
+    .sort((a, b) => {
+      // Primary sort: by created_at timestamp (descending)
+      if (a.created_at && b.created_at) {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      
+      // Fallback sort: by date and time_start (descending)
+      const dateA = new Date(`${a.date}T${a.time_start || '00:00'}`);
+      const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
+      return dateB.getTime() - dateA.getTime();
+    });
 
   return (
     <DashboardLayout>
@@ -670,9 +905,9 @@ const FinancialsPage = () => {
               <Dialog open={reservationDialogOpen} onOpenChange={setReservationDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
-                    <Plus className="mr-2 h-4 w-4" />
+                <Plus className="mr-2 h-4 w-4" />
                     {t("new_sales")}
-                  </Button>
+              </Button>
                 </DialogTrigger>
               <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
@@ -845,7 +1080,7 @@ const FinancialsPage = () => {
                   </div>
                     <div className="text-right font-semibold text-lg mt-2">
                       Total: £{(Number(cash) || 0) + (Number(card) || 0) + (Number(wallet) || 0)}
-                    </div>
+                  </div>
                 </div>
                 <div className="flex justify-end gap-2 mt-4">
                   <Button variant="outline" onClick={() => setReservationDialogOpen(false)} disabled={isSubmittingReservation}>
@@ -901,7 +1136,7 @@ const FinancialsPage = () => {
                             {isAdmin && (
                               <Button size="icon" variant="ghost" onClick={() => {
                                 // Set all edit states from the reservation row
-                                  setSelectedReservation(row);
+                                setSelectedReservation(row);
                                 setReservationDate(new Date(row.date));
                                 setSelectedCourt(row.courts?.id || "");
                                 setTimeStart(row.time_start || "09:00");
@@ -911,10 +1146,10 @@ const FinancialsPage = () => {
                                 setCash(row.cash ?? 0);
                                 setCard(row.card ?? 0);
                                 setWallet(row.wallet ?? 0);
-                                  setEditReservationDialogOpen(true);
+                                setEditReservationDialogOpen(true);
                               }}>
-                                <Pencil className="h-4 w-4" />
-                              </Button>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
                             )}
                             {isAdmin && (
                               <Button size="icon" variant="ghost" onClick={() => {
@@ -922,8 +1157,8 @@ const FinancialsPage = () => {
                                 setPendingDeleteReservation(row);
                                 setShowDeleteDialog(true);
                               }}>
-                                <Trash2 className="h-4 w-4 text-red-500" />
-                              </Button>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
                             )}
                           </TableCell>
                         </TableRow>
@@ -978,105 +1213,105 @@ const FinancialsPage = () => {
                 <Button variant="outline" className="mr-2" onClick={() => setIsCategoryManagerOpen(true)}>
                   {t("manage_categories")}
                 </Button>
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="mr-2 h-4 w-4" />
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
                       {t("add_expense")}
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
                       <DialogTitle>{t("add_new_expense")}</DialogTitle>
-                    </DialogHeader>
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                        <FormField
-                          control={form.control}
-                          name="title"
-                          render={({ field }) => (
-                            <FormItem>
+                  </DialogHeader>
+                  <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                      <FormField
+                        control={form.control}
+                        name="title"
+                        render={({ field }) => (
+                          <FormItem>
                               <FormLabel>{t("title")}</FormLabel>
-                              <FormControl>
+                            <FormControl>
                                 <Input placeholder={t("expense_title_placeholder")} {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="amount"
-                          render={({ field }) => (
-                            <FormItem>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="amount"
+                        render={({ field }) => (
+                          <FormItem>
                                 <FormLabel>{t("amount")}</FormLabel>
-                              <FormControl>
-                                <Input type="number" step="0.01" {...field} />
+                            <FormControl>
+                              <Input type="number" step="0.01" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="date"
+                        render={({ field }) => (
+                          <FormItem>
+                              <FormLabel>{t("date")}</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
                           )}
                         />
-                        <FormField
-                          control={form.control}
-                          name="date"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>{t("date")}</FormLabel>
-                              <FormControl>
-                                <Input type="date" {...field} />
-                                </FormControl>
+                          <FormField
+                            control={form.control}
+                            name="category_id"
+                            render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>{t("category")}</FormLabel>
+                                <div className="flex gap-2">
+                                  <FormControl>
+                                    <select
+                                        className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-black dark:text-white"
+                                      value={field.value || ""}
+                                      onChange={field.onChange}
+                                    >
+                                        <option value="">{t("no_category")}</option>
+                                      {categories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                      ))}
+                                    </select>
+                                  </FormControl>
+                                  <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryDialogOpen(true)}>
+                                      + {t("add_category")}
+                                  </Button>
+                                </div>
                                 <FormMessage />
                               </FormItem>
                             )}
                           />
-                            <FormField
-                              control={form.control}
-                              name="category_id"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>{t("category")}</FormLabel>
-                                  <div className="flex gap-2">
-                                    <FormControl>
-                                      <select
-                                        className="border rounded px-2 py-1 bg-white dark:bg-gray-800 text-black dark:text-white"
-                                        value={field.value || ""}
-                                        onChange={field.onChange}
-                                      >
-                                        <option value="">{t("no_category")}</option>
-                                        {categories.map((cat) => (
-                                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                        ))}
-                                      </select>
-                                    </FormControl>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => setIsCategoryDialogOpen(true)}>
-                                      + {t("add_category")}
-                                    </Button>
-                                  </div>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
-                            <FormField
-                              control={form.control}
-                              name="notes"
-                              render={({ field }) => (
-                                <FormItem>
+                          <FormField
+                            control={form.control}
+                            name="notes"
+                            render={({ field }) => (
+                              <FormItem>
                                   <FormLabel>{t("notes")}</FormLabel>
-                                  <FormControl>
+                                <FormControl>
                                     <Input placeholder={t("optional_notes")} {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button type="submit" className="w-full">
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <Button type="submit" className="w-full">
                           {t("add_expense")}
-                        </Button>
-                      </form>
-                    </Form>
-                  </DialogContent>
-                </Dialog>
+                      </Button>
+                    </form>
+                  </Form>
+                </DialogContent>
+              </Dialog>
               </div>
             </div>
             
@@ -1111,22 +1346,22 @@ const FinancialsPage = () => {
                         </TableCell>
                         <TableCell>
                           {isAdmin && (
-                            <Button size="icon" variant="ghost" onClick={() => {
-                              setEditExpense(expense);
-                              form.setValue('title', expense.title);
-                              form.setValue('amount', expense.amount);
-                              form.setValue('date', expense.date);
-                              form.setValue('category_id', expense.category_id || "");
-                              form.setValue('notes', expense.notes || "");
-                              setEditExpenseDialogOpen(true);
-                            }}>
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                          <Button size="icon" variant="ghost" onClick={() => {
+                            setEditExpense(expense);
+                            form.setValue('title', expense.title);
+                            form.setValue('amount', expense.amount);
+                            form.setValue('date', expense.date);
+                            form.setValue('category_id', expense.category_id || "");
+                            form.setValue('notes', expense.notes || "");
+                            setEditExpenseDialogOpen(true);
+                          }}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           )}
                           {isAdmin && (
-                            <Button size="icon" variant="ghost" onClick={() => { setDeleteExpenseId(expense.id); setDeleteExpenseDialogOpen(true); }}>
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
+                          <Button size="icon" variant="ghost" onClick={() => { setDeleteExpenseId(expense.id); setDeleteExpenseDialogOpen(true); }}>
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -1388,39 +1623,39 @@ const FinancialsPage = () => {
             ) : (
               <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                 {categories.map((cat, idx) => (
-                  <div key={cat.id} className="flex items-center gap-2">
-                    {editCategoryId === cat.id ? (
-                      <>
-                        <Input
-                          value={editCategoryName}
-                          onChange={e => setEditCategoryName(e.target.value)}
-                          className="w-1/2"
-                        />
-                        <Button size="sm" onClick={async () => {
-                          if (!editCategoryName.trim()) return;
-                          await supabase.from('expense_categories').update({ name: editCategoryName.trim() }).eq('id', cat.id);
+                <div key={cat.id} className="flex items-center gap-2">
+                  {editCategoryId === cat.id ? (
+                    <>
+                      <Input
+                        value={editCategoryName}
+                        onChange={e => setEditCategoryName(e.target.value)}
+                        className="w-1/2"
+                      />
+                      <Button size="sm" onClick={async () => {
+                        if (!editCategoryName.trim()) return;
+                        await supabase.from('expense_categories').update({ name: editCategoryName.trim() }).eq('id', cat.id);
+                        await fetchCategories();
+                        setEditCategoryId(null);
+                      }}>Save</Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditCategoryId(null)}>Cancel</Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1">{cat.name}</span>
+                      <Button size="icon" variant="ghost" onClick={() => { setEditCategoryId(cat.id); setEditCategoryName(cat.name); }}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" onClick={async () => {
+                        if (window.confirm('Delete this category?')) {
+                          await supabase.from('expense_categories').delete().eq('id', cat.id);
                           await fetchCategories();
-                          setEditCategoryId(null);
-                        }}>Save</Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditCategoryId(null)}>Cancel</Button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1">{cat.name}</span>
-                        <Button size="icon" variant="ghost" onClick={() => { setEditCategoryId(cat.id); setEditCategoryName(cat.name); }}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button size="icon" variant="ghost" onClick={async () => {
-                          if (window.confirm('Delete this category?')) {
-                            await supabase.from('expense_categories').delete().eq('id', cat.id);
-                            await fetchCategories();
-                          }
-                        }}>
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
+                        }
+                      }}>
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </>
+                  )}
+                </div>
                 ))}
               </div>
             )}
