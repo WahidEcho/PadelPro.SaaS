@@ -698,6 +698,7 @@ const FinancialsPage = () => {
         cash,
         card,
         wallet,
+        created_at,
         clients(name, id),
         courts(name, id, court_groups(name))
       `);
@@ -733,7 +734,12 @@ const FinancialsPage = () => {
       );
     })
     .sort((a, b) => {
-      // Sort by date descending, then by time_start descending
+      // Primary sort: by created_at timestamp (descending)
+      if (a.created_at && b.created_at) {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      
+      // Fallback sort: by date and time_start (descending)
       const dateA = new Date(`${a.date}T${a.time_start || '00:00'}`);
       const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
       return dateB.getTime() - dateA.getTime();
