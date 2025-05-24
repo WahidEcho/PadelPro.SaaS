@@ -432,7 +432,8 @@ const FinancialsPage = () => {
       const { data } = await supabase
         .from('clients')
         .select('*')
-        .or(`name.ilike.%${clientSearch}%,phone.ilike.%${clientSearch}%`);
+        .or(`name.ilike.%${clientSearch}%,phone.ilike.%${clientSearch}%`)
+        .eq('is_deleted', false);
       setClientSearchResults(data || []);
       setShowClientDropdown(true);
       setClientDropdownIndex(-1);
@@ -462,7 +463,7 @@ const FinancialsPage = () => {
     async function fetchCourtsAndClients() {
       const { data: courtsData } = await supabase.from('courts').select('*');
       setCourts(courtsData || []);
-      const { data: clientsData } = await supabase.from('clients').select('*');
+      const { data: clientsData } = await supabase.from('clients').select('*').eq('is_deleted', false);
       setClients(clientsData || []);
     }
     if (reservationDialogOpen) fetchCourtsAndClients();

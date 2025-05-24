@@ -135,7 +135,7 @@ const ReservationsPage = () => {
             clients!inner (name),
             courts!inner (name)
           `)
-          .order('date', { ascending: false });
+          .order('created_at', { ascending: false });
         
         if (reservationsError) {
           console.error('Error fetching reservations:', reservationsError);
@@ -254,7 +254,12 @@ const ReservationsPage = () => {
       return true;
     })
     .sort((a, b) => {
-      // Sort by date descending, then by time_start descending
+      // Primary sort: by created_at timestamp (descending)
+      if (a.created_at && b.created_at) {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      
+      // Fallback sort: by date and time_start (descending)
       const dateA = new Date(`${a.date}T${a.time_start || '00:00'}`);
       const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
       return dateB.getTime() - dateA.getTime();
@@ -319,6 +324,7 @@ const ReservationsPage = () => {
           court_name: court?.name || 'Unknown'
         };
         
+        // Place the new reservation at the top of the list
         setReservations([newReservation, ...reservations]);
       }
       
@@ -538,11 +544,13 @@ const ReservationsPage = () => {
                         <SelectValue placeholder={t("select_client")} />
                       </SelectTrigger>
                       <SelectContent>
-                        {clients.map((client) => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.name}{client.phone ? ` (${client.phone})` : ''}
-                          </SelectItem>
-                        ))}
+                        {clients
+                          .filter(client => client.is_deleted !== true)
+                          .map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.name}{client.phone ? ` (${client.phone})` : ''}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -925,11 +933,13 @@ const ReservationsPage = () => {
                     <SelectValue placeholder="Select client" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clients.map((client) => (
-                      <SelectItem key={client.id} value={client.id}>
-                        {client.name}{client.phone ? ` (${client.phone})` : ''}
-                      </SelectItem>
-                    ))}
+                    {clients
+                      .filter(client => client.is_deleted !== true)
+                      .map((client) => (
+                        <SelectItem key={client.id} value={client.id}>
+                          {client.name}{client.phone ? ` (${client.phone})` : ''}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
