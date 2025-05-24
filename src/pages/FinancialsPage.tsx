@@ -538,6 +538,10 @@ const FinancialsPage = () => {
       setCard(0);
       setWallet(0);
       setReservationDialogOpen(false);
+      
+      // Manually fetch the updated income reservations
+      fetchIncomeReservations();
+      
       toast({ title: "Reservation added", description: `Reservation has been added successfully` });
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Failed to add reservation", variant: "destructive" });
@@ -650,25 +654,38 @@ const FinancialsPage = () => {
   }, [selectedReservation, editReservationDialogOpen]);
 
   useEffect(() => {
+    // Define the handleRealtimeChange function outside of the useEffect 
+    // to ensure it doesn't depend on any changing state
     const handleRealtimeChange = () => {
+      console.log("Realtime change detected - fetching income reservations");
       fetchIncomeReservations();
     };
 
+    // Create a more specific channel name for each table
     const transactionsChannel = supabase
-      .channel('realtime:transactions')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, handleRealtimeChange)
+      .channel('realtime:income-transactions')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'transactions' 
+      }, handleRealtimeChange)
       .subscribe();
 
     const reservationsChannel = supabase
-      .channel('realtime:reservations')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservations' }, handleRealtimeChange)
+      .channel('realtime:income-reservations')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'reservations' 
+      }, handleRealtimeChange)
       .subscribe();
 
+    // Clean up the channels on component unmount
     return () => {
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(reservationsChannel);
     };
-  }, []);
+  }, []); // Empty dependency array to ensure this only runs once
 
   // Fetch reservations for the income table
   const [incomeReservations, setIncomeReservations] = useState<any[]>([]);
