@@ -258,14 +258,61 @@ const FinancialsPage = () => {
     }
   };
 
-  // Calculate summary values for the new tab - only include transactions with reservations
-  const transactionsWithReservations = filteredTransactions.filter(t => t.reservations?.id);
-  const totalSales = transactionsWithReservations.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-  const totalCash = transactionsWithReservations.filter(t => t.payment_method === 'cash').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-  const totalCard = transactionsWithReservations.filter(t => t.payment_method === 'card').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-  const totalWallet = transactionsWithReservations.filter(t => t.payment_method === 'wallet').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+  // State for summary cards data - use same logic as court sales
+  const [summaryCardsData, setSummaryCardsData] = useState({
+    totalSales: 0,
+    totalCash: 0,
+    totalCard: 0,
+    totalWallet: 0,
+    isLoading: true
+  });
+
+  // Fetch summary cards data using the same logic as court sales
+  const fetchSummaryCardsData = async () => {
+    setSummaryCardsData(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      let query = supabase
+        .from('transactions')
+        .select('amount, payment_method, reservations!inner(id)');
+
+      if (singleDay) {
+        query = query.eq('date', toLocalDateString(singleDay));
+      } else if (dateRange && dateRange.from && dateRange.to) {
+        query = query
+          .gte('date', toLocalDateString(dateRange.from))
+          .lte('date', toLocalDateString(dateRange.to));
+      }
+
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching summary data:', error);
+        setSummaryCardsData({ totalSales: 0, totalCash: 0, totalCard: 0, totalWallet: 0, isLoading: false });
+        return;
+      }
+
+      // Calculate totals from fresh database query
+      const totalSales = data.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      const totalCash = data.filter(t => t.payment_method === 'cash').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      const totalCard = data.filter(t => t.payment_method === 'card').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+      const totalWallet = data.filter(t => t.payment_method === 'wallet').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+
+      setSummaryCardsData({
+        totalSales,
+        totalCash,
+        totalCard,
+        totalWallet,
+        isLoading: false
+      });
+    } catch (error) {
+      console.error('Error fetching summary data:', error);
+      setSummaryCardsData({ totalSales: 0, totalCash: 0, totalCard: 0, totalWallet: 0, isLoading: false });
+    }
+  };
+
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0);
-  const cashMinusExpenses = totalCash - totalExpenses;
+  const cashMinusExpenses = summaryCardsData.totalCash - totalExpenses;
 
   // Helper to get local date string in YYYY-MM-DD
   function toLocalDateString(date: Date) {
@@ -406,12 +453,23 @@ const FinancialsPage = () => {
     fetchSingleDayCourtSales();
   }, [singleDay]);
 
+  // Fetch summary cards data when filters change
+  useEffect(() => {
+    fetchSummaryCardsData();
+  }, [singleDay, dateRange]);
+
+  // Initial fetch of summary cards data
+  useEffect(() => {
+    fetchSummaryCardsData();
+  }, []);
+
   useEffect(() => {
     // Define the handleRealtimeChange function outside of the useEffect 
     // to ensure it doesn't depend on any changing state
     const handleRealtimeChange = () => {
       console.log("Realtime change detected - fetching income reservations");
       fetchIncomeReservations();
+      fetchSummaryCardsData(); // Fetch summary cards data
       
       // Also update summary data when transactions or reservations change
       if (singleDay) {
@@ -1491,12 +1549,12 @@ const FinancialsPage = () => {
                   <div className="space-y-4">
                     <h3 className="text-xl font-bold">{`${t("financials_for")}: ${format(singleDay, "PPP")}`}</h3>
                     <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-                      <StatCard title={t("sales")} value={Math.round(displaySingleDaySales).toString()} icon={DollarSign} description={t("total_sales_for_day")} positive={true} />
-                      <StatCard title={t("cash")} value={Math.round(displaySingleDayCash).toString()} icon={DollarSign} description={t("cash_payments")} positive={true} />
-                      <StatCard title={t("card")} value={Math.round(displaySingleDayCard).toString()} icon={CreditCard} description={t("card_payments")} positive={true} />
-                      <StatCard title={t("wallet")} value={Math.round(displaySingleDayWallet).toString()} icon={DollarSign} description={t("wallet_payments")} positive={true} />
-                      <StatCard title={t("expenses")} value={Math.round(displaySingleDayExpenses).toString()} icon={TrendingDown} description={t("expenses_for_day")} negative={true} />
-                      <StatCard title={t("cash_minus_expenses")} value={Math.round(displaySingleDayNet).toString()} icon={DollarSign} description={t("cash_minus_expenses")} positive={displaySingleDayNet >= 0} negative={displaySingleDayNet < 0} />
+                      <StatCard title={t("sales")} value={summaryCardsData.isLoading ? "..." : Math.round(summaryCardsData.totalSales).toString()} icon={DollarSign} description={t("total_sales_for_day")} positive={true} />
+                      <StatCard title={t("cash")} value={summaryCardsData.isLoading ? "..." : Math.round(summaryCardsData.totalCash).toString()} icon={DollarSign} description={t("cash_payments")} positive={true} />
+                      <StatCard title={t("card")} value={summaryCardsData.isLoading ? "..." : Math.round(summaryCardsData.totalCard).toString()} icon={CreditCard} description={t("card_payments")} positive={true} />
+                      <StatCard title={t("wallet")} value={summaryCardsData.isLoading ? "..." : Math.round(summaryCardsData.totalWallet).toString()} icon={DollarSign} description={t("wallet_payments")} positive={true} />
+                      <StatCard title={t("expenses")} value={expensesLoading ? "..." : Math.round(totalExpenses).toString()} icon={TrendingDown} description={t("expenses_for_day")} negative={true} />
+                      <StatCard title={t("cash_minus_expenses")} value={summaryCardsData.isLoading || expensesLoading ? "..." : Math.round(cashMinusExpenses).toString()} icon={DollarSign} description={t("cash_minus_expenses")} positive={cashMinusExpenses >= 0} negative={cashMinusExpenses < 0} />
                     </div>
                     {/* Court group sales for single day */}
                     <h3 className="text-2xl font-bold mt-8 mb-2">{t("court_sale_summary")}</h3>
@@ -1569,28 +1627,28 @@ const FinancialsPage = () => {
                     <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
                       <StatCard
                         title="Total Sales"
-                        value={Math.round(totalSales).toString()}
+                        value={summaryCardsData.isLoading || expensesLoading ? "..." : Math.round(summaryCardsData.totalSales).toString()}
                         icon={DollarSign}
                         description="Sum of all sales"
                         positive={true}
                       />
                       <StatCard
                         title="Total Cash"
-                        value={Math.round(totalCash).toString()}
+                        value={summaryCardsData.isLoading || expensesLoading ? "..." : Math.round(summaryCardsData.totalCash).toString()}
                         icon={DollarSign}
                         description="Sum of all cash payments"
                         positive={true}
                       />
                       <StatCard
                         title="Total Card"
-                        value={Math.round(totalCard).toString()}
+                        value={summaryCardsData.isLoading || expensesLoading ? "..." : Math.round(summaryCardsData.totalCard).toString()}
                         icon={CreditCard}
                         description="Sum of all card payments"
                         positive={true}
                       />
                       <StatCard
                         title="Total Wallet"
-                        value={Math.round(totalWallet).toString()}
+                        value={summaryCardsData.isLoading || expensesLoading ? "..." : Math.round(summaryCardsData.totalWallet).toString()}
                         icon={DollarSign}
                         description="Sum of all wallet payments"
                         positive={true}
