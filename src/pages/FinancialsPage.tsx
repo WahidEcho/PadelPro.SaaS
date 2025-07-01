@@ -877,32 +877,32 @@ const FinancialsPage = () => {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
                 title={singleDay ? `${format(singleDay, "PPP")} ${t("revenue")}` : t("todays_revenue")}
-                value={singleDay ? Math.round(singleDaySales).toString() : Math.round(stats.todayRevenue).toString()}
+                value={summaryCardsData.isLoading ? "..." : Math.round(summaryCardsData.totalSales).toString()}
                 icon={DollarSign}
                 description={singleDay ? `${t("total_revenue_for")} ${format(singleDay, "PPP")}` : t("total_revenue_for_today")}
                 positive={true}
               />
               <StatCard
                 title={singleDay ? `${format(singleDay, "PPP")} ${t("expenses")}` : t("todays_expenses")}
-                value={singleDay ? Math.round(singleDayTotalExpenses).toString() : Math.round(stats.todayExpenses).toString()}
+                value={expensesLoading ? "..." : Math.round(totalExpenses).toString()}
                 icon={TrendingDown}
                 description={singleDay ? `${t("total_expenses_for")} ${format(singleDay, "PPP")}` : t("total_expenses_for_today")}
                 negative={true}
               />
               <StatCard
                 title={singleDay ? t("total_revenue") : t("total_revenue")}
-                value={singleDay ? Math.round(singleDaySales).toString() : Math.round(stats.totalRevenue).toString()}
+                value={summaryCardsData.isLoading ? "..." : Math.round(summaryCardsData.totalSales).toString()}
                 icon={TrendingUp}
                 description={singleDay ? `${t("total_sales_for")} ${format(singleDay, "PPP")}` : t("all_time_revenue")}
                 positive={true}
               />
               <StatCard
                 title={singleDay ? t("net_profit") : t("net_profit")}
-                value={singleDay ? Math.round(singleDaySales - singleDayTotalExpenses).toString() : Math.round(stats.netProfit).toString()}
+                value={summaryCardsData.isLoading || expensesLoading ? "..." : Math.round(summaryCardsData.totalSales - totalExpenses).toString()}
                 icon={CreditCard}
                 description={singleDay ? `${t("net_profit_for")} ${format(singleDay, "PPP")}` : t("total_revenue_minus_expenses")}
-                positive={singleDay ? (singleDaySales - singleDayTotalExpenses) > 0 : stats.netProfit > 0}
-                negative={singleDay ? (singleDaySales - singleDayTotalExpenses) < 0 : stats.netProfit < 0}
+                positive={(summaryCardsData.totalSales - totalExpenses) > 0}
+                negative={(summaryCardsData.totalSales - totalExpenses) < 0}
               />
             </div>
             
@@ -916,7 +916,7 @@ const FinancialsPage = () => {
                     <div className="text-center py-4">Loading transactions...</div>
                   ) : (
                     <div className="space-y-4">
-                      {(singleDay ? singleDayTransactions : filteredTransactions).slice(0, 5).map(transaction => (
+                      {filteredTransactions.slice(0, 5).map(transaction => (
                         <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-md">
                           <div>
                             <div className="font-medium">
@@ -933,7 +933,7 @@ const FinancialsPage = () => {
                           </div>
                         </div>
                       ))}
-                      {(singleDay ? singleDayTransactions : filteredTransactions).length === 0 && (
+                      {filteredTransactions.length === 0 && (
                         <div className="text-center py-4">No transactions found</div>
                       )}
                     </div>
@@ -950,7 +950,7 @@ const FinancialsPage = () => {
                     <div className="text-center py-4">Loading expenses...</div>
                   ) : (
                     <div className="space-y-4">
-                      {(singleDay ? singleDayExpenses : filteredExpenses).slice(0, 5).map(expense => (
+                      {filteredExpenses.slice(0, 5).map(expense => (
                         <div key={expense.id} className="flex items-center justify-between p-3 border rounded-md">
                           <div>
                             <div className="font-medium">{expense.title}</div>
@@ -965,7 +965,7 @@ const FinancialsPage = () => {
                           </div>
                         </div>
                       ))}
-                      {(singleDay ? singleDayExpenses : filteredExpenses).length === 0 && (
+                      {filteredExpenses.length === 0 && (
                         <div className="text-center py-4">No expenses found</div>
                       )}
                     </div>
