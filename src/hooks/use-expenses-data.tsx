@@ -16,7 +16,8 @@ export function useExpensesData() {
       const { data, error } = await supabase
         .from('expenses')
         .select('*, expense_categories(name)')
-        .order('date', { ascending: false });
+        .order('date', { ascending: false })
+        .limit(10000); // Increase limit to handle large datasets
         
       if (error) throw error;
       

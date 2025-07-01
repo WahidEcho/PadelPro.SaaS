@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, Pencil, Trash2 } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -141,6 +141,10 @@ const FinancialsPage = () => {
   const [expenseNameFilter, setExpenseNameFilter] = useState("");
   const [expenseCategoryFilter, setExpenseCategoryFilter] = useState("");
 
+  // Pagination state for income table
+  const [incomeCurrentPage, setIncomeCurrentPage] = useState(1);
+  const incomeItemsPerPage = 100;
+
   // For single day: group court sales
   const [singleDayCourtSales, setSingleDayCourtSales] = useState<any[]>([]);
 
@@ -151,7 +155,15 @@ const FinancialsPage = () => {
     }
     if (!dateRange || !dateRange.from || !dateRange.to) return true;
     const date = new Date(dateStr);
-    return date >= dateRange.from && date <= dateRange.to;
+    
+    // Create start of day for 'from' date and end of day for 'to' date
+    const startDate = new Date(dateRange.from);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(dateRange.to);
+    endDate.setHours(23, 59, 59, 999);
+    
+    return date >= startDate && date <= endDate;
   };
 
   // Memoize filtered transactions and expenses
@@ -246,11 +258,12 @@ const FinancialsPage = () => {
     }
   };
 
-  // Calculate summary values for the new tab
-  const totalSales = filteredTransactions.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-  const totalCash = filteredTransactions.filter(t => t.payment_method === 'cash').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-  const totalCard = filteredTransactions.filter(t => t.payment_method === 'card').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
-  const totalWallet = filteredTransactions.filter(t => t.payment_method === 'wallet').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+  // Calculate summary values for the new tab - only include transactions with reservations
+  const transactionsWithReservations = filteredTransactions.filter(t => t.reservations?.id);
+  const totalSales = transactionsWithReservations.reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+  const totalCash = transactionsWithReservations.filter(t => t.payment_method === 'cash').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+  const totalCard = transactionsWithReservations.filter(t => t.payment_method === 'card').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
+  const totalWallet = transactionsWithReservations.filter(t => t.payment_method === 'wallet').reduce((sum, t) => sum + parseFloat(t.amount.toString()), 0);
   const totalExpenses = filteredExpenses.reduce((sum, e) => sum + parseFloat(e.amount.toString()), 0);
   const cashMinusExpenses = totalCash - totalExpenses;
 
@@ -266,8 +279,8 @@ const FinancialsPage = () => {
     if (!dateRange || !dateRange.from || !dateRange.to) return;
     
       let query = supabase
-        .from('reservations')
-        .select(`amount, courts!inner(name, court_groups!inner(id, name))`);
+        .from('transactions')
+        .select(`amount, reservations(courts(name, court_groups(id, name)))`);
     
         query = query
           .gte('date', toLocalDateString(dateRange.from))
@@ -281,17 +294,22 @@ const FinancialsPage = () => {
     
       // Group by court group, then by court
       const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
-      for (const res of data) {
-        const groupId = res.courts.court_groups.id;
-        const groupName = res.courts.court_groups.name;
-        const courtId = res.courts.name;
+      for (const tx of data) {
+        // Skip transactions without reservations or court info
+        if (!tx.reservations?.courts?.court_groups?.id || !tx.reservations?.courts?.court_groups?.name || !tx.reservations?.courts?.name) {
+          continue;
+        }
+        
+        const groupId = tx.reservations.courts.court_groups.id;
+        const groupName = tx.reservations.courts.court_groups.name;
+        const courtId = tx.reservations.courts.name;
         if (!groupMap[groupId]) {
           groupMap[groupId] = { groupName, courts: {} };
         }
         if (!groupMap[groupId].courts[courtId]) {
           groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
         }
-        groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
+        groupMap[groupId].courts[courtId].sales += typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount;
       }
     
       // Convert to array for rendering
@@ -310,8 +328,8 @@ const FinancialsPage = () => {
       }
     
       let query = supabase
-        .from('reservations')
-        .select(`amount, courts!inner(name, court_groups!inner(id, name))`)
+        .from('transactions')
+        .select(`amount, reservations(courts(name, court_groups(id, name)))`)
         .eq('date', toLocalDateString(singleDay));
     
       const { data, error } = await query;
@@ -322,17 +340,22 @@ const FinancialsPage = () => {
     
       // Group by court group, then by court
       const groupMap: Record<string, { groupName: string, courts: Record<string, { courtName: string, sales: number }> }> = {};
-      for (const res of data) {
-        const groupId = res.courts.court_groups.id;
-        const groupName = res.courts.court_groups.name;
-        const courtId = res.courts.name;
+      for (const tx of data) {
+        // Skip transactions without reservations or court info
+        if (!tx.reservations?.courts?.court_groups?.id || !tx.reservations?.courts?.court_groups?.name || !tx.reservations?.courts?.name) {
+          continue;
+        }
+        
+        const groupId = tx.reservations.courts.court_groups.id;
+        const groupName = tx.reservations.courts.court_groups.name;
+        const courtId = tx.reservations.courts.name;
         if (!groupMap[groupId]) {
           groupMap[groupId] = { groupName, courts: {} };
         }
         if (!groupMap[groupId].courts[courtId]) {
           groupMap[groupId].courts[courtId] = { courtName: courtId, sales: 0 };
         }
-        groupMap[groupId].courts[courtId].sales += typeof res.amount === 'string' ? parseFloat(res.amount) : res.amount;
+        groupMap[groupId].courts[courtId].sales += typeof tx.amount === 'string' ? parseFloat(tx.amount) : tx.amount;
       }
     
       // Convert to array for rendering
@@ -357,7 +380,9 @@ const FinancialsPage = () => {
         created_at,
         clients(name, id),
         courts(name, id, court_groups(name))
-      `);
+      `)
+      .order('created_at', { ascending: false })
+      .limit(10000); // Increase limit to handle large datasets
     if (singleDay) {
       query = query.eq('date', toLocalDateString(singleDay));
     } else if (dateRange && dateRange.from && dateRange.to) {
@@ -457,9 +482,9 @@ const FinancialsPage = () => {
     );
   });
 
-  // Filter for single day
+  // Filter for single day - only include transactions with reservations
   const singleDayTransactions = singleDay
-    ? transactions.filter((t) => isSameDay(t.date, singleDay))
+    ? transactions.filter((t) => isSameDay(t.date, singleDay) && t.reservations?.id)
     : [];
   const singleDayExpenses = singleDay
     ? expenses.filter((e) => isSameDay(e.date, singleDay))
@@ -714,7 +739,7 @@ const FinancialsPage = () => {
       );
     })
     .sort((a, b) => {
-      // Primary sort: by created_at timestamp (descending)
+      // Primary sort: by created_at timestamp (descending) - most recent reservations first
       if (a.created_at && b.created_at) {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
@@ -724,6 +749,17 @@ const FinancialsPage = () => {
       const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
       return dateB.getTime() - dateA.getTime();
     });
+
+  // Calculate pagination for income table
+  const incomeTotalPages = Math.ceil(filteredIncomeReservations.length / incomeItemsPerPage);
+  const incomeStartIndex = (incomeCurrentPage - 1) * incomeItemsPerPage;
+  const incomeEndIndex = incomeStartIndex + incomeItemsPerPage;
+  const paginatedIncomeReservations = filteredIncomeReservations.slice(incomeStartIndex, incomeEndIndex);
+
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setIncomeCurrentPage(1);
+  }, [incomeCourtFilter, incomeClientFilter, incomeGroupFilter, singleDay, dateRange]);
 
   return (
     <DashboardLayout>
@@ -1097,6 +1133,38 @@ const FinancialsPage = () => {
             </Dialog>
             </div>
             
+            {/* Pagination Controls for Income Table - Top */}
+            {!transactionsLoading && filteredIncomeReservations.length > 0 && (
+              <div className="flex items-center justify-between px-2 py-4 bg-muted/50 rounded-md">
+                <div className="text-sm text-muted-foreground">
+                  Showing {incomeStartIndex + 1} to {Math.min(incomeEndIndex, filteredIncomeReservations.length)} of {filteredIncomeReservations.length} transactions
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setIncomeCurrentPage(Math.max(1, incomeCurrentPage - 1))}
+                    disabled={incomeCurrentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Previous
+                  </Button>
+                  <div className="text-sm text-muted-foreground">
+                    Page {incomeCurrentPage} of {incomeTotalPages}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setIncomeCurrentPage(Math.min(incomeTotalPages, incomeCurrentPage + 1))}
+                    disabled={incomeCurrentPage === incomeTotalPages}
+                  >
+                    Next
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+            
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -1119,8 +1187,8 @@ const FinancialsPage = () => {
                         Loading transactions...
                       </TableCell>
                     </TableRow>
-                  ) : filteredIncomeReservations.length > 0 ? (
-                    filteredIncomeReservations.map(row => {
+                  ) : paginatedIncomeReservations.length > 0 ? (
+                    paginatedIncomeReservations.map(row => {
                       const total = (row.cash ?? 0) + (row.card ?? 0) + (row.wallet ?? 0);
                       return (
                         <TableRow key={row.id}>
@@ -1167,7 +1235,7 @@ const FinancialsPage = () => {
                   ) : (
                     <TableRow>
                       <TableCell colSpan={9} className="text-center py-8">
-                        No transactions found
+                        {filteredIncomeReservations.length === 0 ? "No transactions found" : "No transactions on this page"}
                       </TableCell>
                     </TableRow>
                   )}
@@ -1185,6 +1253,38 @@ const FinancialsPage = () => {
                   )}
                 </TableBody>
               </Table>
+              
+              {/* Pagination Controls for Income Table */}
+              {!transactionsLoading && filteredIncomeReservations.length > 0 && (
+                <div className="flex items-center justify-between px-2 py-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {incomeStartIndex + 1} to {Math.min(incomeEndIndex, filteredIncomeReservations.length)} of {filteredIncomeReservations.length} transactions
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIncomeCurrentPage(Math.max(1, incomeCurrentPage - 1))}
+                      disabled={incomeCurrentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <div className="text-sm text-muted-foreground">
+                      Page {incomeCurrentPage} of {incomeTotalPages}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIncomeCurrentPage(Math.min(incomeTotalPages, incomeCurrentPage + 1))}
+                      disabled={incomeCurrentPage === incomeTotalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
           

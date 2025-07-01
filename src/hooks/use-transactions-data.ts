@@ -28,7 +28,8 @@ export function useTransactionsData() {
             )
           )
         `)
-        .order('date', { ascending: false });
+        .order('date', { ascending: false })
+        .limit(10000); // Increase limit to handle large datasets
 
       if (error) throw error;
       setTransactions(data || []);

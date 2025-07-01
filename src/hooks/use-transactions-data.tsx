@@ -15,7 +15,8 @@ export function useTransactionsData() {
       const { data, error } = await supabase
         .from('transactions')
         .select('*, reservations!inner(id, clients(name), courts!inner(name, court_groups(name)))')
-        .order('date', { ascending: false });
+        .order('date', { ascending: false })
+        .limit(10000); // Increase limit to handle large datasets
         
       if (error) throw error;
       

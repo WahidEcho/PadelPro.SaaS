@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +24,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { format, addHours, isBefore, parseISO } from "date-fns";
-import { CalendarIcon, Plus, Search, Loader2, Pencil, Trash2 } from "lucide-react";
+import { CalendarIcon, Plus, Search, Loader2, Pencil, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Dialog,
@@ -86,6 +86,10 @@ const ReservationsPage = () => {
   const [pickerMode, setPickerMode] = useState<'single' | 'range'>('range');
   const [creatorFilter, setCreatorFilter] = useState<string>("all");
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+  
   const { toast } = useToast();
   const { fetchTransactions } = useTransactionsData();
   const { fetchExpenses } = useExpensesData();
@@ -135,7 +139,8 @@ const ReservationsPage = () => {
             clients!inner (name),
             courts!inner (name)
           `)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(10000); // Increase limit to handle large datasets
         
         if (reservationsError) {
           console.error('Error fetching reservations:', reservationsError);
@@ -264,6 +269,17 @@ const ReservationsPage = () => {
       const dateB = new Date(`${b.date}T${b.time_start || '00:00'}`);
       return dateB.getTime() - dateA.getTime();
     });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredReservations.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedReservations = filteredReservations.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, creatorFilter, dateRange, singleDay, selectedTab]);
 
   const handleAddReservation = async () => {
     if (!selectedCourt || !selectedClient || !date) {
@@ -742,14 +758,14 @@ const ReservationsPage = () => {
                         </tr>
                       </thead>
                       <tbody className="[&_tr:last-child]:border-0">
-                        {filteredReservations.length === 0 ? (
+                        {paginatedReservations.length === 0 ? (
                           <tr>
                             <td colSpan={isAdmin ? 11 : 10} className={`p-4 text-center text-muted-foreground ${language === 'ar' ? 'text-right' : 'text-left'}`}>
-                              {t("no_reservations_found")}
+                              {filteredReservations.length === 0 ? t("no_reservations_found") : "No reservations on this page"}
                             </td>
                           </tr>
                         ) : (
-                          filteredReservations.map((res) => {
+                          paginatedReservations.map((res) => {
                             const status = getReservationStatus(res);
                             const statusColor = getStatusColor(status);
                             
@@ -824,6 +840,38 @@ const ReservationsPage = () => {
                         )}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+              
+              {/* Pagination Controls */}
+              {!isLoading && filteredReservations.length > 0 && (
+                <div className="flex items-center justify-between px-2 py-4">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {startIndex + 1} to {Math.min(endIndex, filteredReservations.length)} of {filteredReservations.length} reservations
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-sm">Page {currentPage} of {totalPages}</span>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               )}
@@ -1014,7 +1062,8 @@ const ReservationsPage = () => {
                 const { data: reservationsData, error: reservationsError } = await supabase
                   .from('reservations')
                   .select(`*, clients!inner (name), courts!inner (name)`)
-                  .order('date', { ascending: false });
+                  .order('date', { ascending: false })
+                  .limit(10000); // Increase limit to handle large datasets
                 if (reservationsError) throw reservationsError;
                 const reservationsWithDetails = reservationsData.map((res: any) => ({
                   ...res,
